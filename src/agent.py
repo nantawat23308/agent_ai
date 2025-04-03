@@ -20,7 +20,7 @@ from smolagents import (
     DuckDuckGoSearchTool,
 )
 from src import prompt_test
-from src import tool_me
+from src import url_function
 
 
 AUTHORIZED_IMPORTS = [
