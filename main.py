@@ -25,6 +25,10 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
     PythonInterpreterTool,
+    ManagedAgentPromptTemplate,
+    PromptTemplates,
+    PlanningPromptTemplate,
+    FinalAnswerPromptTemplate,
 )
 import litellm
 from src import prompt_test
@@ -33,6 +37,7 @@ from src import model_create
 from src import agent as my_agent
 from src import tool_me
 from src import my_tools
+from src import backlink_check
 
 #
 # litellm._turn_on_debug()
@@ -49,6 +54,21 @@ BROWSER_CONFIG = {
     },
     "serpapi_key": os.getenv("SERPAPI_API_KEY"),
 }
+
+managed_agent = ManagedAgentPromptTemplate(task="", report="")
+TEST_PROMPT = PromptTemplates(
+    system_prompt="",
+    planning=PlanningPromptTemplate(
+        initial_facts="",
+        initial_plan="",
+        update_facts_pre_messages="",
+        update_facts_post_messages="",
+        update_plan_pre_messages="",
+        update_plan_post_messages="",
+    ),
+    managed_agent=ManagedAgentPromptTemplate(task="Find Official URL", report="Official URL"),
+    final_answer=FinalAnswerPromptTemplate(pre_messages="", post_messages=""),
+)
 
 
 class AgentM:
@@ -104,31 +124,63 @@ class AgentM:
         """
         # DuckDuckGoSearchTool()
         agent = CodeAgent(
-            tools=[my_tools.get_official_website, my_tools.verify_event_website, DuckDuckGoSearchTool()],
+            tools=[
+                my_tools.get_official_website,
+                # my_tools.verify_event_website,
+                DuckDuckGoSearchTool(),
+                my_tools.VerifyEvent(),
+            ],
             model=self.model,
             max_steps=20,
             verbosity_level=2,
             name="URL_resolver",
             description="Validates and finds official URL",
+            additional_authorized_imports=["requests", "bs4", "pandas", "os", "webbrowser", "json"],
         )
-
         agent.prompt_templates["managed_agent"][
             "task"
-        ] += """You are an intelligent research agent tasked with finding the official website of a given sport tour or league. Your goal is to ensure that the URL is authoritative and legitimate
-        Follow these steps carefully: 
-        ## Steps  
-        ### 1. Search for the Official Website 
-        you can use get_official_website function to find official website 
+        ] += """You are an intelligent research agent tasked with finding the official website. Your goal is to ensure that the URL is authoritative and legitimate
+        Follow these steps carefully:
+        ## Steps
+        ### 1. Search for the Official Website
+        you can use {get_official_website} function to find official website
         in case you not found the official website from this tool you can use the search engine to find the official website
 
-        ### 2. Verify the Website’s Authenticity  
-        you can use verify_event_website th verify how much score of this website you have to return only one which highest score and you think it is the official website.
+        ### 2. Verify the Website’s Authenticity
+        you can use {verify_event_website} to verify how much score of this website you have to return only one which highest score and you think it is the official website.
 
-        ### 3. Provide a Verified Response  
-        - If you confirm the official website, return the URL along with a brief justification (e.g., "This is the official website as listed on the sport’s governing body page.").  
+        ### 3. Provide a Verified Response
+        - If you confirm the official website, return the URL along with a brief justification (e.g., "This is the official website as listed on the sport’s governing body page.").
         - If no authoritative site is found, state that the information is unavailable rather than guessing.
-        ## Output
-        {"tour name": name of tour, "official website": url, "justification": justification, "score": score}
+          ## Output
+        {"tour name": name of tour, "official website": url, "score": score}
+        """
+
+        return agent
+
+    def agent_backlink(self):
+        """
+        You are an intelligent research agent tasked with finding the official website of a given sport tour or league. Your goal is to ensure that the URL is authoritative and legitimate
+
+        :return:
+        """
+        agent = CodeAgent(
+            tools=[
+                # backlink_check.verify_url
+                # DuckDuckGoSearchTool()
+                GoogleSearchTool(provider="serperapi")
+            ],
+            model=self.model,
+            max_steps=20,
+            verbosity_level=2,
+            name="backlink_agent",
+            description="Research backlinks for a given URL",
+            additional_authorized_imports=["requests", "bs4", "pandas", "os"],
+        )
+        agent.prompt_templates["managed_agent"][
+            "task"
+        ] += """
+        You are an intelligent research agent tasked with finding the official website of a given sport tour or league. Your goal is to ensure that the URL is authoritative and legitimate
         """
         return agent
 
@@ -258,24 +310,29 @@ class AgentM:
             # tools=[visualizer, TextInspectorTool(self.model, self.text_limit)],
             tools=[visualizer],
             additional_authorized_imports=["time", "numpy", "pandas"],
-            managed_agents=[agent],
+            managed_agents=agent,
         )
         return manager_agent
 
     def run(self, task):
         # agent = self.agent_web()
-        agent = self.agent_url_validate()
-        manage_ag = self.manage_agent(agent)
+        url_resolve_agent = self.agent_url_validate()
+        back_link_agent = self.agent_backlink()
+        manage_ag = self.manage_agent(
+            [
+                url_resolve_agent,
+                # back_link_agent,
+            ]
+        )
         ans = manage_ag.run(task, max_steps=20)
         return ans
 
 
 if __name__ == '__main__':
     agentic = AgentM()
-    search_request = """Please find the event Tour of Turkey official website and give me the official website url.
-     ## Output
-        {"tour name": name of tour, "official website": url, "justification": justification, "score": score}"""
+    search_request = """Please find the OpenAI official website and give me the official website url."""
 
+    # search_request = "please verify website https://www.letour.fr/en/ is the Real website not phishing by check other website are link to this website"
     # search_request = """https://www.nokerekoerse.be/en Is this the official website for the event Santos Tour Down Under?"""
     answer = agentic.run(search_request)
     print(answer)
