@@ -102,7 +102,6 @@ def multi_agent(model):
             FindNextTool(browser),
             ArchiveSearchTool(browser),
             TextInspectorTool(model, text_limit),
-            tool_me.find_name_from_url,
         ],
         model=model,
         additional_authorized_imports=AUTHORIZED_IMPORTS,
