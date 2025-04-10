@@ -26,7 +26,7 @@ from fake_useragent import UserAgent
 
 from urllib.parse import urlparse, parse_qs
 from smolagents import tool
-
+from src import search_function
 
 def get_domain(url):
     parsed_url = urlparse(url)
@@ -39,12 +39,12 @@ def get_main_domain(url):
 
 
 @tool
-def verify_url(url_to_check: str) -> list:
+def verify_url(url_to_check: str, provider: str = "serperapi") -> list:
     """
     Verify if a URL appears in search results that link to Domain.
     Args:
         url_to_check: The URL to check
-        num_results: The number of search results to check
+        provider: The search engine provider to use (default is "serperapi")
     Returns:
         A list of URLs found in the search results
     """
@@ -60,7 +60,6 @@ def verify_url(url_to_check: str) -> list:
             query, stop=10, pause=2, extra_params={'filter': '1'}, user_agent=googlesearch.get_random_user_agent()
         ):
             search_results.append(result)
-            print(f"Found URL: {result}")
             # Check the number of results (this could be improved to check for reputable sites)
             if len(search_results) >= 5:  # Threshold can be adjusted
                 print(f"URL appears {len(search_results)} times, which is a good sign!")
@@ -68,37 +67,13 @@ def verify_url(url_to_check: str) -> list:
         else:
             print(f"URL appears {len(search_results)} times, which might not be enough.")
             return search_results
-    except urllib.error.HTTPError as e:
-        time.sleep(30)
-        return ddgs_search(domain_url)
-        # if e.code == 429:
-        #     print("Too many requests, waiting to retry...")
-        #     return search_results
-
-
-def search_serp(url_to_check: str) -> list[str]:
-    domain_url = get_domain(url_to_check)
-    # Search Google for the URL
-    query = f'intext:{domain_url}'
-    print(f"Searching for: {query}")
-    search_params = {
-        "q": query,  # Search for the event name
-        "api_key": os.getenv("SERPER_API_KEY"),
-        "num": 10,  # Number of results to return
-        "no_cache": True,
-    }
-
-    # Perform the search using SerpAPI
-    serp_search = GoogleSearch(search_params)
-    data = serp_search.get_dict()
-    print(data.get("organic_results"))
-    if "error" in data:
-        print(f"Error: {data['error']}")
-        return []
-    if "organic_results" not in data:
-        print("No organic results found.")
-        return []
-    return [res.get("link") for res in data.get("organic_results", [])]
+    except urllib.error.HTTPError:
+        print("HTTPError: Too many requests. try API")
+        if provider == "serperapi":
+            search_results = search_function.search_serper(domain_url)
+        else:
+            search_results = search_function.search_serp(domain_url)
+    return search_results
 
 
 def get_seo_backlinks(target_url, max_results=100, delay=2):
@@ -156,7 +131,6 @@ def get_seo_backlinks(target_url, max_results=100, delay=2):
 
             # Find all search results
             results = soup.find_all('div', class_='result__body')
-            print(results)
 
             if not results:
                 print("No more results found.")
@@ -266,11 +240,6 @@ def ddgs_search(url_to_check):
     return results
 
 
-def search_ddg(query):
-    url = "https://api.duckduckgo.com/"
-    params = {"q": query, "format": "json"}
-    response = requests.get(url, params=params)
-    return response.json()
 
 
 def verify_url_selenium(url_to_check, threshold=3):
@@ -319,10 +288,16 @@ def verify_url_selenium(url_to_check, threshold=3):
     return len(search_results) >= threshold
 
 
+
+
+
 if __name__ == '__main__':
-    url_to_check = "https://renewitour.com/en/"
+    url_to_check = "https://c1aude.ai/"
     threshold = 3
-    if verify_url_selenium(url_to_check, threshold):
+    out = verify_url(url_to_check)
+    print(out)
+    print(len(out))
+    if len(out) >= 10:
         print(f"The URL {url_to_check} appears at least {threshold} times in search results.")
     else:
-        print(f"The URL {url_to_check} does not appear at least {threshold} times in search results.")
+        print(f"The URL {url_to_check} does not appear at least.")
