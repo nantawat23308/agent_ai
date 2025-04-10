@@ -1,4 +1,6 @@
+import json
 import os
+from tabnanny import verbose
 
 from dotenv import load_dotenv
 
@@ -13,24 +15,23 @@ from open_deep_research.scripts.text_web_browser import (
     PageUpTool,
     SimpleTextBrowser,
     VisitTool,
+SearchInformationTool,
+DownloadTool
 )
 from smolagents import (
     CodeAgent,
     GoogleSearchTool,
-    # HfApiModel,
     DuckDuckGoSearchTool,
     ToolCallingAgent,
     VisitWebpageTool,
     PythonInterpreterTool,
-    ManagedAgentPromptTemplate,
-    PromptTemplates,
-    PlanningPromptTemplate,
-    FinalAnswerPromptTemplate,
+MultiStepAgent
+
 )
 from src import constants
 from src import model_create
 from src import my_tools
-from smolagents.gradio_ui import GradioUI
+
 #
 # litellm._turn_on_debug()
 # register()
@@ -47,30 +48,19 @@ BROWSER_CONFIG = {
     "serpapi_key": os.getenv("SERPAPI_API_KEY"),
 }
 
-managed_agent = ManagedAgentPromptTemplate(task="", report="")
-TEST_PROMPT = PromptTemplates(
-    system_prompt="",
-    planning=PlanningPromptTemplate(
-        initial_facts="",
-        initial_plan="",
-        update_facts_pre_messages="",
-        update_facts_post_messages="",
-        update_plan_pre_messages="",
-        update_plan_post_messages="",
-    ),
-    managed_agent=ManagedAgentPromptTemplate(task="Find Official URL", report="Official URL"),
-    final_answer=FinalAnswerPromptTemplate(pre_messages="", post_messages=""),
-)
+
 
 
 class AgentM:
     def __init__(self):
         self.text_limit = 100000
+        # self.model = model_create.huggingface_model(model="meta-llama/Llama-4-Scout-17B-16E-Instruct")
         self.model = model_create.bedrock_model()
         self.browser = SimpleTextBrowser(**BROWSER_CONFIG)
         self.tools = [
-            DuckDuckGoSearchTool(),
-            PythonInterpreterTool(),
+            # DuckDuckGoSearchTool(),
+            # PythonInterpreterTool(),
+            SearchInformationTool(self.browser),
             VisitTool(self.browser),
             PageUpTool(self.browser),
             PageDownTool(self.browser),
@@ -78,6 +68,7 @@ class AgentM:
             FindNextTool(self.browser),
             ArchiveSearchTool(self.browser),
             TextInspectorTool(self.model, self.text_limit),
+            DownloadTool(self.browser),
         ]
 
     def agent_url_validate(self):
@@ -137,7 +128,7 @@ class AgentM:
         ## Plan
         ### 1. Search for the Official Website
         you can use `get_official_website` function to find official website this function will return the official website from wikipedia.
-        and then you have to search for the official website from the search engine result most of the time the official website is listed on the first page of the search engine.
+        and then you have to pic 1 website the most relevance from the search engine result most of the time the official website is listed on the first page of the search engine.
        
         ### 2. Verify the Website’s Authenticity
         you can use `verify_event_website` to verify how much score of this website you have to return only one which highest score and you think it is the official website.
@@ -283,6 +274,7 @@ class AgentM:
                 """
         return agent
 
+
     def manage_agent(self, agent):
         """
         You are an expert Planning Agent tasked with solving problems efficiently through structured plans.
@@ -307,18 +299,25 @@ class AgentM:
         manager_agent = CodeAgent(
             model=self.model,
             # tools=[visualizer, TextInspectorTool(self.model, self.text_limit)],
-            tools=[visualizer],
+            tools=[visualizer, my_tools.save_to_file],
             additional_authorized_imports=["time", "numpy", "pandas"],
             managed_agents=agent,
+
         )
+        manager_agent.prompt_templates["managed_agent"]["task"] +=  """
+        ## Output save data in to md file use function `save_to_file`
+        """
         return manager_agent
 
     def run(self, task):
         # agent = self.agent_web()
         url_resolve_agent = self.agent_url_validate()
         back_link_agent = self.agent_backlink()
+        web_agent = self.agent_web()
+        # test_agent = self.test_agent()
         manage_ag = self.manage_agent(
             [
+                # test_agent,
                 url_resolve_agent,
                 # back_link_agent,
             ]
@@ -337,12 +336,10 @@ class AgentM:
 
 
 if __name__ == '__main__':
-
     agentic = AgentM()
-    agen = agentic.start()
-    demo = GradioUI(agen)
-    demo.launch()
-    # search_request = """Please find the OpenAI official website and give me the official website url."""
-
-    # answer = agentic.run(search_request)
-    # print(answer)
+    # # agen = agentic.start()
+    # # demo = GradioUI(agen)
+    # # demo.launch()
+    search_request = """Please find the แมนยู official website and give me the official website url."""
+    answer = agentic.run(search_request)
+    # print(answer.to_string())

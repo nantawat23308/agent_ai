@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 
-from smolagents import Tool
+from smolagents import Tool, tool
 
 from src import url_function
 from src import url_phase
@@ -69,6 +69,16 @@ class GetOfficialWebsite(Tool):
             return url_function.extract_official_website(wiki_url)
         return "Not Found"
 
+
+@tool
+def save_to_file(data: str) -> None:
+    """
+    Save the given data to a file.
+    Args:
+        data: The data to save.
+    """
+    with open("report.md", 'w') as file:
+        file.write(data)
 
 if __name__ == '__main__':
     pass

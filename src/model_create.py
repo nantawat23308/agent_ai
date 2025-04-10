@@ -6,10 +6,13 @@ from smolagents import (
     ToolCallingAgent,
     models,
     Tool,
+HfApiModel
 )
 from dotenv import load_dotenv
 import os
 from pydantic import BaseModel, Field
+from together import Together
+from transformers import pipeline
 
 load_dotenv()
 from typing import List, Optional, Dict
@@ -20,10 +23,13 @@ custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 
 def bedrock_model():
+    # "bedrock/us.meta.llama3-3-70b-instruct-v1:0"
+    # meta-llama/Llama-4-Scout-17B-16E-Instruct
     model_params = {
         "model_id": "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
         "custom_role_conversions": custom_role_conversions,
         "max_completion_tokens": 8192,
+        "temperature": 0.7,
     }
     model = LiteLLMModel(**model_params)
     return model
@@ -54,6 +60,13 @@ def groq_model():
     model = LiteLLMModel(**model_params)
     return model
 
+def huggingface_model(model="deepseek-ai/DeepSeek-V3-0324"):
+    engine = HfApiModel(
+        provider="novita",
+        model_id=model,
+        token=os.getenv("HF_TOKEN"),
+        max_tokens=5000, )
+    return engine
 
 class WikiInputs(BaseModel):
     """Inputs to the wikipedia tool."""
@@ -145,3 +158,21 @@ class CreateModel(models.ApiModel):
         )
         first_message.raw = response
         return self.postprocess_message(first_message, tools_to_call_from)
+
+def together_model():
+    client = Together()
+    response = client.chat.completions.create(
+        model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        messages=[{"role": "user", "content": "What are some fun things to do in New York?"}]
+    )
+    print(response.choices[0].message.content)
+
+def transformer_hugging_face():
+    messages = [
+        {"role": "user", "content": "Who are you?"},
+    ]
+    pipe = pipeline("text-generation", model="nvidia/Llama-3_1-Nemotron-Ultra-253B-v1", trust_remote_code=True)
+    print(pipe(messages))
+
+if __name__ == '__main__':
+    transformer_hugging_face()

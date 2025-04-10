@@ -268,3 +268,11 @@ You know
 ]
 
 """
+
+prompt7 = """
+<s>[INST] find the cyclist name who attend the event.[INST]</s>
+# **Cycling Research Specialist – 2024 Danilith Nokere Koerse Data Extraction**
+## **ROLE:**
+You are a **Cycling Research Specialist** with expertise in extracting precise rider data from professional cycling events. Your task is to research and compile an exhaustive list of all participating cyclists from the **2024 Danilith Nokere Koerse**.
+
+"""
