@@ -9,6 +9,8 @@ from openrouteservice import exceptions
 import os
 from dotenv import load_dotenv
 import json
+import folium
+
 
 load_dotenv()
 
@@ -202,26 +204,44 @@ def get_route_with_towns(origin, destination, profile='cycling-road'):
     # Geocode origin and destination
     origin_coords = geocode_location(client, origin)
     destination_coords = geocode_location(client, destination)
-
+    another = geocode_location(client, origin)
+    print(origin_coords, destination_coords, another)
+    # Check if geocoding was successful
     if not origin_coords or not destination_coords:
         print("Error: Failed to geocode origin or destination.")
         return None
 
+
+
     try:
         # Request route details
         route_request = {
-            'coordinates': [origin_coords, destination_coords],
+            'coordinates': [origin_coords, destination_coords, another],
             'profile': profile,
             'instructions': True,
+            # "geometry":'true',
+            "format_out":"geojson",
             # 'instruction_format': 'text'
         }
+
+
+
         directions = client.directions(**route_request)
 
-        if not directions or 'routes' not in directions or not directions['routes']:
+        # plot the route on a map
+        route = directions['features'][0]['geometry']['coordinates']
+        m = folium.Map(location=[origin_coords[1], origin_coords[0]], zoom_start=12)
+        folium.PolyLine(locations=[(lat, lon) for lon, lat in route], color='blue').add_to(m)
+        folium.Marker(location=[origin_coords[1], origin_coords[0]], popup=origin).add_to(m)
+        folium.Marker(location=[destination_coords[1], destination_coords[0]], popup=destination).add_to(m)
+        folium.Marker(location=[another[1], another[0]], popup="Oudenaarde").add_to(m)
+        m.save("map.html")
+
+        if not directions or "features" not in directions or not directions['features']:
             print(f"No route found between '{origin}' and '{destination}'.")
             return None
 
-        route = directions['routes'][0]
+        route = directions["features"][0]['properties']
         steps = route['segments'][0]['steps']
 
         # Extract street names and towns
@@ -310,17 +330,16 @@ def event_danilith_nokere_koerse():
     return
 
 if __name__ == '__main__':
-    event_danilith_nokere_koerse()
+    # event_danilith_nokere_koerse()
+    # start_town = "Lille, France"
+    # end_town = "Mantes-la-Jolie, France"
+    start_town = "Deinze Markt, Belgium"
+    end_town = "Nokere, Waregemsestraat, Belgium"
+    route_details = get_route_with_towns(start_town, end_town)
+    if route_details:
+        print("\nRoute Details:")
+        # for detail in route_details:
+        #     print(detail.split("on")[-1].strip())
 
-    # start_town = "Deinze Markt, Belgium"
-    # end_town = "Nokere, Waregemsestraat, Belgium"
-    #
-    # route_details = get_route_with_towns(start_town, end_town)
-    # print(route_details)
-    # if route_details:
-    #     print("\nRoute Details:")
-    #     for detail in route_details:
-    #         print(detail.split("on")[-1].strip())
-    #
-    #     for detail in route_details:
-    #         print(detail)
+        for detail in route_details:
+            print(detail)

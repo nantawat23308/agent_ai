@@ -276,3 +276,9 @@ prompt7 = """
 You are a **Cycling Research Specialist** with expertise in extracting precise rider data from professional cycling events. Your task is to research and compile an exhaustive list of all participating cyclists from the **2024 Danilith Nokere Koerse**.
 
 """
+
+prompt = """
+<s>[INST] find the cyclist name who attend the event.[INST]</s>
+{response_1}
+<s>[INST] who is the best ranking.[INST]
+"""

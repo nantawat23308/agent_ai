@@ -112,13 +112,15 @@ class AgentM:
                 # my_tools.verify_event_website,
                 DuckDuckGoSearchTool(),
                 my_tools.VerifyEvent(),
+                PythonInterpreterTool()
             ],
+
             model=self.model,
             max_steps=20,
             verbosity_level=2,
             name="URL_resolver",
             description="Validates and finds official URL",
-            additional_authorized_imports=["requests", "bs4", "pandas", "os", "webbrowser", "json"],
+            additional_authorized_imports=["requests", "bs4", "pandas", "os", "webbrowser", "json", "io", "built-in"],
         )
         #  result from two tools should be the same if not you have to compare result with step 2.
         agent.prompt_templates["managed_agent"][
@@ -137,13 +139,8 @@ class AgentM:
         - If you confirm the official website, return the URL along with a brief justification (e.g., "This is the official website as listed on the sport’s governing body page.").
         - If no authoritative site is found, state that the information is unavailable rather than guessing.
         
-        """
-        agent.prompt_templates["managed_agent"][
-            "report"
-        ] += """
-        ## Output
-        you have to return result in json format like this 
-        {"name": name , "official website": url}
+        ##OUPUT
+        save the output in data.txt file
         """
 
         return agent
@@ -300,7 +297,7 @@ class AgentM:
             model=self.model,
             # tools=[visualizer, TextInspectorTool(self.model, self.text_limit)],
             tools=[visualizer, my_tools.save_to_file],
-            additional_authorized_imports=["time", "numpy", "pandas"],
+            additional_authorized_imports=["time", "numpy", "pandas", "open", "os"],
             managed_agents=agent,
 
         )
