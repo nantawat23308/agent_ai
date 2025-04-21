@@ -1,16 +1,15 @@
-import requests
 import osmnx as ox
 from geopy.geocoders import Nominatim
-from geopy.geocoders import Nominatim, GoogleV3, Photon
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 import time
-import openrouteservice
-from openrouteservice import exceptions
-import os
 from dotenv import load_dotenv
 import json
+import matplotlib.pyplot as plt
+import requests
+import networkx as nx
 import folium
-
+import math
+from itertools import pairwise
 
 load_dotenv()
 
@@ -178,168 +177,588 @@ def get_location_details(address):
         return None
 
 
-# Example usage
-def geocode_location(client, address):
-    """Geocode an address to coordinates using OpenRouteService."""
-    try:
-        geocode_result = client.pelias_search(text=address, size=1)
-        if geocode_result and 'features' in geocode_result and len(geocode_result['features']) > 0:
-            coordinates = geocode_result['features'][0]['geometry']['coordinates']
-            return coordinates
-        else:
-            print(f"Warning: Could not geocode address: {address}")
-            return None
-    except exceptions.ApiError as e:
-        print(f"Geocoding API Error: {e}")
-        return None
-    except Exception as e:
-        print(f"Unexpected error during geocoding: {e}")
-        return None
+def get_all_main_roads_between(city1, city2):
+    # Get the street networks for both cities
+    G1 = ox.graph_from_place(f"{city1}", network_type="drive")
+    G2 = ox.graph_from_place(f"{city2}", network_type="drive")
 
-def get_route_with_towns(origin, destination, profile='cycling-road'):
-    """Fetch route details including street names and towns."""
-    api_key = os.getenv("OPENROUTESERVICE_API_KEY")
-    client = openrouteservice.Client(key=api_key)
+    # Get a larger area that contains both cities
+    combined_area = f"{city1} to {city2}"
+    # G_combined = ox.graph_from_place(combined_area, network_type="drive")
 
-    # Geocode origin and destination
-    origin_coords = geocode_location(client, origin)
-    destination_coords = geocode_location(client, destination)
-    another = geocode_location(client, origin)
-    print(origin_coords, destination_coords, another)
-    # Check if geocoding was successful
-    if not origin_coords or not destination_coords:
-        print("Error: Failed to geocode origin or destination.")
-        return None
+    # Filter for just the main roads
+    main_roads = ["motorway", "trunk", "primary", "secondary"]
+    G_main = ox.graph_from_place(combined_area, network_type="drive",
+                                 custom_filter=f'["highway"~"{"|".join(main_roads)}"]')
+
+    # Plot the result
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ox.plot_graph(G_main, ax=ax, node_size=0, edge_linewidth=1.5)
+    plt.title(f"Main Roads Between {city1} and {city2}")
+    plt.show()
+
+    return G_main
+
+def get_city_coords(city_name):
+    url = f"https://nominatim.openstreetmap.org/search?q={city_name}&format=json&limit=1"
+    headers = {'User-Agent': 'MainRoadFinder/1.0'}
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    if data:
+        return float(data[0]['lat']), float(data[0]['lon'])
+    return None
+
+def raw():
+    city1_name = "Deinze, Belgium"
+    city2_name = "Nokere, Belgium"
+    city1_coords = get_city_coords(city1_name)
+    city2_coords = get_city_coords(city2_name)
+    print(f"Coordinates of {city1_name}: {city1_coords}")
+    print(f"Coordinates of {city2_name}: {city2_coords}")
+
+    lat1, lon1 = city1_coords
+    lat2, lon2 = city2_coords
+
+    min_lat = min(lat1, lat2) - 0.1
+    max_lat = max(lat1, lat2) + 0.1
+    min_lon = min(lon1, lon2) - 0.1
+    max_lon = max(lon1, lon2) + 0.1
+
+    # Query for main roads
+    overpass_url = "https://overpass-api.de/api/interpreter"
+    condition_query = """
+        ["highway"~"motorway|trunk|primary|cycleway"]["bicycle"!~"no"]
+        """
+    query = f"""
+            [out:json];
+            way
+              ({min_lat},{min_lon},{max_lat},{max_lon})
+              {condition_query};
+            out geom;
+            """
+
+    response = requests.post(overpass_url, data=query)
+    data = response.json()
+
+    # Create a map centered between the two cities
+    center_lat = (lat1 + lat2) / 2
+    center_lon = (lon1 + lon2) / 2
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=9)
+
+    # Add markers for cities
+    folium.Marker([lat1, lon1], popup=city1_name).add_to(m)
+    folium.Marker([lat2, lon2], popup=city2_name).add_to(m)
+    road_names = []
+    for way in data['elements']:
+        if 'geometry' in way:
+            points = [(node['lat'], node['lon']) for node in way['geometry']]
+
+            # Determine color based on road type
+            color = 'gray'
+            if 'tags' in way:
+                if way['tags'].get('bicycle') == 'no' or not way['tags'].get('bicycle'):
+                    continue
+                print(way['tags'])
+                if way['tags'].get('highway') == 'motorway':
+                    color = 'blue'
+                elif way['tags'].get('highway') == 'trunk':
+                    color = 'green'
+                elif way['tags'].get('highway') == 'primary':
+                    color = 'red'
+                elif way['tags'].get('highway') == 'cycleway':
+                    color = 'orange'
+                # elif way['tags'].get('bicycle') == 'yes':
+                #     color = 'purple'
+                # elif way['tags'].get('bicycle') == 'designated':
+                #     color = 'yellow'
+
+            road_name = way['tags'].get('name', 'Unnamed road')
+            road_ref = way['tags'].get('ref', '')
+            popup_text = f"{road_name} ({road_ref})" if road_ref else road_name
+            if not road_name == 'Unnamed road' and road_name not in road_names:
+                road_names.append(popup_text)
+
+            folium.PolyLine(
+                points,
+                color=color,
+                weight=3,
+                opacity=0.7,
+                popup=popup_text
+            ).add_to(m)
+
+        # Save map to HTML file
+    m.save('main_roads_map.html')
+    print(road_names)
+    print("Map saved as 'main_roads_map.html'")
 
 
+def get_road_names(city_names: list[str]) -> list[str]:
+    city_coo = {}
+    city_to_city = {}
+    for index1 in range(0, len(city_names)-1):
+        city1_name = city_names[index1]
+        city2_name = city_names[index1 + 1]
+        city1_coords = get_city_coords(city1_name)
+        city2_coords = get_city_coords(city2_name)
 
-    try:
-        # Request route details
-        route_request = {
-            'coordinates': [origin_coords, destination_coords, another],
-            'profile': profile,
-            'instructions': True,
-            # "geometry":'true',
-            "format_out":"geojson",
-            # 'instruction_format': 'text'
-        }
+        city_coo[city1_name] = city1_coords
+        city_coo[city2_name] = city2_coords
 
+        lat1, lon1 = city1_coords
+        lat2, lon2 = city2_coords
 
+        min_lat = min(lat1, lat2) - 0.1
+        max_lat = max(lat1, lat2) + 0.1
+        min_lon = min(lon1, lon2) - 0.1
+        max_lon = max(lon1, lon2) + 0.1
+        city_to_city[f"{city1_name} to {city2_name}"] = min_lat, min_lon, max_lat, max_lon
+    overpass_url = "https://overpass-api.de/api/interpreter"
+    condition_query = '["highway"~"motorway|trunk|primary|secondary|cycleway"]'
 
-        directions = client.directions(**route_request)
+    lat1, lon1 = city_coo[city_names[0]]
+    lat2, lon2 = city_coo[city_names[-1]]
+    print(f"Coordinates of {city_names[0]}: {lat1}, {lon1}")
+    print(f"Coordinates of {city_names[-1]}: {lat2}, {lon2}")
 
-        # plot the route on a map
-        route = directions['features'][0]['geometry']['coordinates']
-        m = folium.Map(location=[origin_coords[1], origin_coords[0]], zoom_start=12)
-        folium.PolyLine(locations=[(lat, lon) for lon, lat in route], color='blue').add_to(m)
-        folium.Marker(location=[origin_coords[1], origin_coords[0]], popup=origin).add_to(m)
-        folium.Marker(location=[destination_coords[1], destination_coords[0]], popup=destination).add_to(m)
-        folium.Marker(location=[another[1], another[0]], popup="Oudenaarde").add_to(m)
-        m.save("map.html")
+    lat = (lat1 + lat2) / 2
+    lon = (lon1 + lon2) / 2
+    differ = abs(lat1-lat2)
+    print(f"Difference in latitude: {differ}")
+    zoom = round((differ* 1000)/8)
+    print(f"Zoom level: {zoom}")
 
-        if not directions or "features" not in directions or not directions['features']:
-            print(f"No route found between '{origin}' and '{destination}'.")
-            return None
+    m = folium.Map(location=[lat, lon], zoom_start=8)
+    for city_name, (lat, lon) in city_coo.items():
+        folium.Marker([lat, lon], popup=city_name).add_to(m)
 
-        route = directions["features"][0]['properties']
-        steps = route['segments'][0]['steps']
+    sum_query = []
+    for coor in city_to_city.values():
+        min_lat, min_lon, max_lat, max_lon = coor
+        # Query for main roads
+        line_query = f"""
+                way
+                  ({min_lat},{min_lon},{max_lat},{max_lon})
+                  {condition_query};
+                """
+        sum_query.append(line_query)
+    sum_query = [f"way({min_lat},{min_lon},{max_lat},{max_lon}){condition_query};" for min_lat, min_lon, max_lat, max_lon in city_to_city.values()]
+    print(sum_query)
+    query = f"""
+            [out:json];
+            (
+            {"\n".join([line_query for line_query in sum_query])}
+            );
+            out geom;
+            """
+    print(query)
+    response = requests.post(overpass_url, data=query)
+    data = response.json()
+    road_names = []
+    road_names_no_ref = []
+    print(data)
+    for way in data['elements']:
+        if 'geometry' in way:
+            points = [(node['lat'], node['lon']) for node in way['geometry']]
 
-        # Extract street names and towns
-        route_details = []
-        for step in steps:
-            street_name = step.get('name', 'Unnamed road')
-            instruction = step['instruction']
-            route_details.append(f"{instruction} on {street_name}")
+            # Determine color based on road type
+            color = 'gray'
+            if 'tags' in way:
+                if way['tags'].get('bicycle') == 'no':
+                    continue
 
-        return route_details
+            road_name = way['tags'].get('name', 'Unnamed road')
 
-    except exceptions.ApiError as e:
-        print(f"Routing API Error: {e}")
-        return None
-    except Exception as e:
-        print(f"Unexpected error during routing: {e}")
-        return None
+            road_ref = way['tags'].get('ref', '')
+            popup_text = f"{road_name} ({road_ref})" if road_ref else road_name
 
-def get_road_names(city_name):
+            if (road_name != 'Unnamed road') and road_name not in road_names_no_ref:
+                road_names_no_ref.append(road_name)
+                road_names.append(road_name)
+
+            folium.PolyLine(
+                points,
+                color='blue',
+                weight=3,
+                opacity=0.7,
+            ).add_to(m)
+    m.save('main_roads_map.html')
+    print(road_names)
+    data
+    with open('data_streetmao.json', 'w+') as file:
+        json.dump(data, file, indent=4)
+
+    with open('main_roads_map.json', 'w+') as file:
+        json.dump(road_names, file, indent=4)
+    return road_names
+
+def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
     """
-    Retrieves a list of road names within a specified city using OSMnx.
+    Route through multiple waypoints in order using Overpass API and NetworkX
 
     Args:
-        city_name (str): The name of the city.
+        waypoints: List of (lat, lon) tuples representing points to visit in order
+        max_routes_per_segment: Max number of alternative routes per segment
 
     Returns:
-        set: A set of unique road names in the city. Returns an empty set if
-             no road names are found or the city is not recognized.
+        A folium map with the complete route including alternatives
     """
-    try:
-        # Download the street network for the city
-        G = ox.graph_from_place(city_name, network_type="drive")
+    if len(waypoints) < 2:
+        return "Need at least two waypoints"
 
-        # Extract edge attributes, which contain road names
-        edges = ox.convert.graph_to_gdfs(G, nodes=False, edges=True)
+    # Create a map centered on the average of all waypoints
+    center_lat = sum(wp[0] for wp in waypoints) / len(waypoints)
+    center_lon = sum(wp[1] for wp in waypoints) / len(waypoints)
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
 
-        # Get the 'name' column, which contains road names
-        road_names = edges['name']
+    # Add markers for all waypoints
+    colors = ['green', 'cadetblue', 'orange', 'purple', 'darkpurple', 'red']
+    for i, point in enumerate(waypoints):
+        if i == 0:
+            marker_text = "Start"
+            color = "green"
+        elif i == len(waypoints) - 1:
+            marker_text = "End"
+            color = "red"
+        else:
+            marker_text = f"Waypoint {i}"
+            color = colors[min(i, len(colors) - 1)]
 
-        # Handle cases where 'name' might be a single string or a list
-        unique_road_names = set()
-        for name in road_names:
-            if isinstance(name, str):
-                unique_road_names.add(name)
-            elif isinstance(name, list):
-                unique_road_names.update(name)
+        folium.Marker(
+            point,
+            popup=marker_text,
+            icon=folium.Icon(color=color)
+        ).add_to(m)
 
-        return list(unique_road_names)
+    # Process each segment between consecutive waypoints
+    total_distance = 0
+    all_segments = []
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return list()
+    # Get pairs of waypoints (start->wp1, wp1->wp2, etc.)
+    for i, (start_point, end_point) in enumerate(pairwise(waypoints)):
+        print(f"\nRouting from waypoint {i} to waypoint {i + 1}:")
+        print(f"  {start_point} -> {end_point}")
 
-def event_danilith_nokere_koerse():
-    event = {
-        "Danilith Nokere Koerse Cities": [
-            "Deinze, Belgium",
-            "Nokere, Belgium",
-            "Oudenaarde, Belgium",
-            "Anzegem, Belgium",
-            "Wortegem-Petegem, Belgium",
-            "Nazareth, Belgium",
-            "Gavere, Belgium",
-            "Zwalm, Belgium",
-            "Zottegem, Belgium",
-            "Horebeke, Belgium",
-            "Maarkedal, Belgium",
-            "Kruisem, Belgium",
-            "Machelen, Belgium"
-        ]
+        # Get routes for this segment
+        result = get_segment_route(start_point, end_point, max_routes_per_segment)
+        print(result)
+
+        if isinstance(result, str):  # Error message
+            print(f"Error: {result}")
+            continue
+
+        # Process all routes for this segment
+        segment_data = {
+            "routes": [],
+            "total_routes": len(result["routes"]),
+            "best_route_index": 0,  # Default to first route as best
+            "best_distance": float('inf')
+        }
+
+        # Route colors alternating by segment
+        segment_base_colors = ["blue", "purple"]
+        segment_base_color = segment_base_colors[i % len(segment_base_colors)]
+
+        # Alternative route color variants
+        if segment_base_color == "blue":
+            route_colors = ["blue", "darkblue", "lightblue"]
+        else:
+            route_colors = ["purple", "darkpurple", "violet"]
+
+        # Add all alternative routes to the map
+        for j, route_path in enumerate(result["routes"]):
+            route_points = result["segment_points"][j]
+            route_distance = result["distances"][j]
+            road_names = result["road_names"][j]
+
+            # Track the best (shortest) route
+            if route_distance < segment_data["best_distance"]:
+                segment_data["best_distance"] = route_distance
+                segment_data["best_route_index"] = j
+
+            # Store route data
+            segment_data["routes"].append({
+                "path": route_path,
+                "points": route_points,
+                "distance": route_distance,
+                "road_names": road_names
+            })
+
+            # Add this route to the map with varying opacity
+            # Primary route (shortest) is more opaque
+            opacity = 0.9 if j == 0 else 0.6
+            weight = 5 if j == 0 else 3
+
+            route_color = route_colors[min(j, len(route_colors) - 1)]
+
+            folium.PolyLine(
+                route_points,
+                color=route_color,
+                weight=weight,
+                opacity=opacity,
+                popup=f"Segment {i + 1}, Route {j + 1}: {route_distance:.1f}km"
+            ).add_to(m)
+
+            print(f"  Route {j + 1}: {route_distance:.1f}km")
+            print(f"  Roads: {', '.join(road_names[:5])}{'...' if len(road_names) > 5 else ''}")
+
+        # Add segment to overall route data
+        all_segments.append(segment_data)
+
+        # Add primary route distance to total
+        primary_route = segment_data["routes"][0]
+        total_distance += primary_route["distance"]
+
+    print(f"\nTotal primary route distance: {total_distance:.1f}km")
+
+    # Add a legend
+    legend_html = """
+    <div style="position: fixed; bottom: 50px; left: 50px; z-index: 1000; background-color: white; padding: 10px; border: 2px solid grey; border-radius: 5px;">
+    <h4>Route Legend</h4>
+    <div><span style="background-color: blue; width: 15px; height: 5px; display: inline-block;"></span> Primary Route</div>
+    <div><span style="background-color: purple; width: 15px; height: 5px; display: inline-block;"></span> Alternative Routes</div>
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(legend_html))
+
+    return {
+        "map": m,
+        "segments": all_segments,
+        "total_distance": total_distance
     }
-    location = []
-    location_road_name = {}
-    for city in event["Danilith Nokere Koerse Cities"]:
-        print(city)
-        # location.extend(get_city_name(city))
-        location_road_name[city] =  get_road_names(city_name=city)
-    # print(location)
-    # for town in location:
-    #     road = get_road_names(city_name=town)
-    #     print(road)
-    #     location_road_name[town] = road
-    print(location_road_name)
-    with open("location_road_name.json", "w") as f:
-        json.dump(location_road_name, f)
-    return
+
+
+def get_segment_route(start_point, end_point, max_routes=3):
+    """
+    Get possible routes for a single segment using Overpass API and NetworkX
+    """
+    # Create a bounding box around the points with some padding
+    min_lat = min(start_point[0], end_point[0]) - 0.05
+    max_lat = max(start_point[0], end_point[0]) + 0.05
+    min_lon = min(start_point[1], end_point[1]) - 0.05
+    max_lon = max(start_point[1], end_point[1]) + 0.05
+
+    # Query for roads in this area
+    overpass_url = "https://overpass-api.de/api/interpreter"
+    query = f"""
+    [out:json];
+    (
+      way["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential"]
+        ({min_lat},{min_lon},{max_lat},{max_lon});
+    );
+    (._;>;);  // Get all nodes for ways
+    out body;
+    """
+
+    response = requests.post(overpass_url, data=query)
+    data = response.json()
+
+    # Create a graph from the data
+    G = nx.DiGraph()  # Directed graph for one-way roads
+
+    # Process nodes
+    nodes = {}
+    for element in data['elements']:
+        if element['type'] == 'node':
+            node_id = element['id']
+            nodes[node_id] = (element['lat'], element['lon'])
+            G.add_node(node_id, pos=(element['lat'], element['lon']))
+
+    # Process ways (roads)
+    for element in data['elements']:
+        if element['type'] == 'way' and 'tags' in element and 'highway' in element['tags']:
+            way_id = element['id']
+            highway_type = element['tags']['highway']
+            name = element['tags'].get('name', f"way_{way_id}")
+
+            # Set edge weight based on road type
+            weight_factors = {
+                'motorway': 0.7,  # Fast
+                'trunk': 0.8,
+                'primary': 0.9,
+                'secondary': 1.0,  # Normal
+                'tertiary': 1.1,
+                'unclassified': 1.2,
+                'residential': 1.3  # Slow
+            }
+            weight_factor = weight_factors.get(highway_type, 1.0)
+
+            # Process nodes in the way
+            for i in range(len(element['nodes']) - 1):
+                from_node = element['nodes'][i]
+                to_node = element['nodes'][i + 1]
+
+                if from_node in nodes and to_node in nodes:
+                    # Calculate distance between nodes
+                    from_pos = nodes[from_node]
+                    to_pos = nodes[to_node]
+                    distance = haversine_distance(from_pos[0], from_pos[1], to_pos[0], to_pos[1])
+
+                    # Adjusted distance based on road type
+                    weighted_distance = distance * weight_factor
+
+                    # Add edge to graph
+                    G.add_edge(from_node, to_node,
+                               weight=weighted_distance,
+                               highway=highway_type,
+                               name=name)
+
+                    # Handle one-way streets
+                    oneway = element['tags'].get('oneway', 'no')
+                    if oneway != 'yes':
+                        G.add_edge(to_node, from_node,
+                                   weight=weighted_distance,
+                                   highway=highway_type,
+                                   name=name)
+
+    # Find the nearest graph nodes to our start and end points
+    start_node = find_nearest_node(G, start_point, nodes)
+    end_node = find_nearest_node(G, end_point, nodes)
+
+    if not start_node or not end_node:
+        return "Could not find suitable start/end nodes in the graph"
+
+    # Find multiple routes
+    routes = []
+    segment_points = []
+    distances = []
+    all_road_names = []
+
+    try:
+        # Find shortest path
+        shortest_path = nx.shortest_path(G, start_node, end_node, weight='weight')
+        routes.append(shortest_path)
+
+        # Get the points for this route
+        route_points = [nodes[node_id] for node_id in shortest_path]
+        segment_points.append(route_points)
+
+        # Calculate route distance
+        distance = sum(haversine_distance(route_points[j][0], route_points[j][1],
+                                          route_points[j + 1][0], route_points[j + 1][1])
+                       for j in range(len(route_points) - 1))
+        distances.append(distance)
+
+        # Get road names along the route
+        road_names = []
+        for j in range(len(shortest_path) - 1):
+            if G.has_edge(shortest_path[j], shortest_path[j + 1]):
+                road_name = G[shortest_path[j]][shortest_path[j + 1]].get('name')
+                if road_name and road_name not in road_names:
+                    road_names.append(road_name)
+        all_road_names.append(road_names)
+
+        # Create a copy of the graph for alternative routes
+        G_alt = G.copy()
+
+        # Find alternative paths if requested
+        if max_routes > 1:
+            for i in range(1, max_routes):
+                # Increase weights on the shortest path to encourage different routes
+                for j in range(len(shortest_path) - 1):
+                    if G_alt.has_edge(shortest_path[j], shortest_path[j + 1]):
+                        G_alt[shortest_path[j]][shortest_path[j + 1]]['weight'] *= 2.0
+
+                # Find new shortest path
+                try:
+                    alt_path = nx.shortest_path(G_alt, start_node, end_node, weight='weight')
+                    # Only add if it's sufficiently different
+                    if is_different_route(routes[0], alt_path, threshold=0.5):
+                        routes.append(alt_path)
+
+                        # Get the points for this route
+                        alt_route_points = [nodes[node_id] for node_id in alt_path]
+                        segment_points.append(alt_route_points)
+
+                        # Calculate route distance using original distances
+                        alt_distance = 0
+                        for j in range(len(alt_path) - 1):
+                            if G.has_edge(alt_path[j], alt_path[j + 1]):
+                                # Use original graph weights, not the penalized ones
+                                alt_distance += G[alt_path[j]][alt_path[j + 1]]['weight']
+                        distances.append(alt_distance)
+
+                        # Get road names along the route
+                        alt_road_names = []
+                        for j in range(len(alt_path) - 1):
+                            if G.has_edge(alt_path[j], alt_path[j + 1]):
+                                road_name = G[alt_path[j]][alt_path[j + 1]].get('name')
+                                if road_name and road_name not in alt_road_names:
+                                    alt_road_names.append(road_name)
+                        all_road_names.append(alt_road_names)
+
+                        # Also penalize this path for future alternatives
+                        for j in range(len(alt_path) - 1):
+                            if G_alt.has_edge(alt_path[j], alt_path[j + 1]):
+                                G_alt[alt_path[j]][alt_path[j + 1]]['weight'] *= 1.5
+                except nx.NetworkXNoPath:
+                    break
+    except nx.NetworkXNoPath:
+        return "No route found between the specified points"
+
+    return {
+        "routes": routes,
+        "segment_points": segment_points,
+        "distances": distances,
+        "road_names": all_road_names
+    }
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Calculate the distance between two points on earth"""
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+    # Haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371  # Earth radius in kilometers
+    return c * r
+
+
+def find_nearest_node(G, point, nodes):
+    """Find the node in the graph closest to the given point"""
+    min_dist = float('inf')
+    nearest_node = None
+
+    for node_id, node_pos in nodes.items():
+        dist = haversine_distance(point[0], point[1], node_pos[0], node_pos[1])
+        if dist < min_dist:
+            min_dist = dist
+            nearest_node = node_id
+
+    return nearest_node
+
+
+def is_different_route(route1, route2, threshold=0.7):
+    """Check if two routes are sufficiently different"""
+    # Simple check: if they share less than threshold% of nodes
+    common_nodes = set(route1).intersection(set(route2))
+    return len(common_nodes) / max(len(route1), len(route2)) < threshold
+
+
+
 
 if __name__ == '__main__':
-    # event_danilith_nokere_koerse()
-    # start_town = "Lille, France"
-    # end_town = "Mantes-la-Jolie, France"
-    start_town = "Deinze Markt, Belgium"
-    end_town = "Nokere, Waregemsestraat, Belgium"
-    route_details = get_route_with_towns(start_town, end_town)
-    if route_details:
-        print("\nRoute Details:")
-        # for detail in route_details:
-        #     print(detail.split("on")[-1].strip())
+    city_names = [
+        "Deinze, Flanders, Belgium",
+        "Gavere, Flanders, Belgium",
+        # "Zottegem, Belgium",
+        # "Oudenaarde, Belgium",
+        # "Anzegem, Belgium",
+        # "Waregem, Belgium",
+        # "Nokere, Flanders, Belgium",
+        # "Kruisem, Belgium"
+    ]
+    waypoints = [(get_city_coords(city)) for city in city_names]
+    print(waypoints)
+    # start = (48.8566, 2.3522)  # Paris
+    # end = (48.5734, 2.4520)  # Evry (closer destination for faster testing)
+    result = get_multi_waypoint_route(waypoints, max_routes_per_segment=5)
+    map_result = result["map"]
 
-        for detail in route_details:
-            print(detail)
+    # Save map to HTML file
+    map_result.save("multi_waypoint_routes_with_alternatives.html")
+    print(f"Routes generated with total primary route distance: {result['total_distance']:.1f}km")
+    print(f"Total alternative routes generated: {sum(segment['total_routes'] for segment in result['segments'])}")

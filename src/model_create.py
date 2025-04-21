@@ -6,7 +6,8 @@ from smolagents import (
     ToolCallingAgent,
     models,
     Tool,
-HfApiModel
+HfApiModel,
+AmazonBedrockServerModel
 )
 from dotenv import load_dotenv
 import os
@@ -17,7 +18,8 @@ from transformers import pipeline
 load_dotenv()
 from typing import List, Optional, Dict
 import warnings
-
+import litellm
+import boto3
 
 custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
@@ -29,9 +31,10 @@ def bedrock_model():
         "model_id": "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
         "custom_role_conversions": custom_role_conversions,
         "max_completion_tokens": 8192,
-        "temperature": 0.7,
+        "temperature": 0,
     }
-    model = LiteLLMModel(**model_params)
+    # model = LiteLLMModel(**model_params)
+    model = AmazonBedrockServerModel(model_id="meta.llama3-3-70b-instruct-v1:0")
     return model
 
 
@@ -162,8 +165,8 @@ class CreateModel(models.ApiModel):
 def together_model():
     client = Together()
     response = client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-        messages=[{"role": "user", "content": "What are some fun things to do in New York?"}]
+        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+        messages=[{"role": "user", "content": "who are you?"}]
     )
     print(response.choices[0].message.content)
 
@@ -171,8 +174,18 @@ def transformer_hugging_face():
     messages = [
         {"role": "user", "content": "Who are you?"},
     ]
-    pipe = pipeline("text-generation", model="nvidia/Llama-3_1-Nemotron-Ultra-253B-v1", trust_remote_code=True)
+    pipe = pipeline("text-generation", model="deepseek-ai/DeepSeek-V3-0324")
     print(pipe(messages))
 
+def gemini_model():
+    messages = [
+        {"role": "user", "content": "Who are you?"},
+    ]
+    model = LiteLLMModel(
+        model_id="gemini/gemini-1.5-pro",
+        api_key=os.getenv("GEMINI_API_KEY"),
+    )
+    response = model(messages)
+    print(response.content)
 if __name__ == '__main__':
-    transformer_hugging_face()
+    gemini_model()

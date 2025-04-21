@@ -25,19 +25,17 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
     PythonInterpreterTool,
-MultiStepAgent
-
+MultiStepAgent,
+AmazonBedrockServerModel
 )
 from src import constants
 from src import model_create
 from src import my_tools
-
-#
-# litellm._turn_on_debug()
+import litellm
 # register()
 # SmolagentsInstrumentor().instrument()
 
-
+litellm.drop_params=True
 BROWSER_CONFIG = {
     "viewport_size": 2048 * 30,
     "downloads_folder": "downloads_folder",
@@ -112,7 +110,7 @@ class AgentM:
                 # my_tools.verify_event_website,
                 DuckDuckGoSearchTool(),
                 my_tools.VerifyEvent(),
-                PythonInterpreterTool()
+                my_tools.save_to_file
             ],
 
             model=self.model,
@@ -120,7 +118,7 @@ class AgentM:
             verbosity_level=2,
             name="URL_resolver",
             description="Validates and finds official URL",
-            additional_authorized_imports=["requests", "bs4", "pandas", "os", "webbrowser", "json", "io", "built-in"],
+            additional_authorized_imports=["requests", "bs4", "pandas", "os", "webbrowser", "json"],
         )
         #  result from two tools should be the same if not you have to compare result with step 2.
         agent.prompt_templates["managed_agent"][
@@ -140,7 +138,8 @@ class AgentM:
         - If no authoritative site is found, state that the information is unavailable rather than guessing.
         
         ##OUPUT
-        save the output in data.txt file
+        Output should be in md format and
+        save the output by using `save_to_file` function
         """
 
         return agent
@@ -199,6 +198,7 @@ class AgentM:
             additional_authorized_imports=["requests", "bs4", "pandas", "os"],
             max_steps=20,
             verbosity_level=2,
+            name="name_research_agent",
             description="""
             ## Webpage Name Verification for Sports Content  
             I want you to analyze the content of a given sports-related webpage and verify whether it contains names of people. Follow these steps:  
@@ -233,43 +233,90 @@ class AgentM:
             additional_authorized_imports=["requests", "bs4", "pandas", "os"],
             max_steps=20,
             verbosity_level=2,
+            name="Crawling_agent",
             description="Web crawling and analyze contents.",
         )
 
         agent.prompt_templates["managed_agent"][
             "task"
         ] += """
-                ## Webpage Name Verification for Sports Content  
-                Crawl known or inferred pages like /teams or /participants.
-                Extract names, teams, countries, sponsors based on context.
-                Try to extract required data from the Website.
+                You are a web data analyst and NLP specialist tasked with extracting **sports-related entities** from webpages and verifying their context. The goal is to identify and validate **names, teams, sponsors, and regions** from the content.
 
-                I want you to analyze the content of a given sports-related webpage and verify whether it contains context what i want. Follow these steps:  
+---
 
-                1. **Extract** the text from the webpage no truncate the content.  
-                2. **Identify** potential name using common name patterns, databases, or context clues.  
-                3. **Cross-check** names with known sports players, coaches, and staff in relevant teams and leagues.  
-                4. **Validate** the names by analyzing their surrounding context to differentiate between people, team names, and other entities.  
-                5. **Determine** the associated **team, league, region, and other context** if applicable.  
-                6. If some info (e.g. riders or sponsors) is missing, perform optimized Google searches: 
-                e.g. "Tour de France 2025 riders site:wikipedia.org"
-                7. **Output** a structured list, including context json format:  
-                find of output should be MD contain
-                Example
-                    input: Full name
-                    output: [{"Full name": ""}, {"Full name": ""}, ...]
-                    input: 
-                        Full name, Team, Region
-                    output: 
-                        [{"Full name": "", "Team": "", "Region": ""},
-                        {"Full name": "", "Team": "", "Region": ""}, 
-                        ...]
+## TASK FLOW
 
-                ### Additional Guidelines:  
-                - **Differentiate** between team names and individual player names.  
-                - **Handle abbreviations** (e.g., "CR7" → Cristiano Ronaldo, "LBJ" → LeBron James).  
-                """
+### Step 1: Extract Raw Web Content
+- Extract and output the **entire textual content** from the given sports-related webpage.
+- Do **not truncate or summarize** the text. Preserve all structure and sections.
+
+---
+
+### Step 2: Identify Names and Entities
+- Use context clues, known naming conventions, and databases to detect:
+  - Player and rider full names
+  - Team names (sponsors, pro teams)
+  - Nationalities or regions
+  - Coach and staff names (if available)
+  - Associated sponsors
+- Handle variations, nicknames, and abbreviations (e.g., "CR7" → Cristiano Ronaldo).
+
+---
+
+### Step 3: Cross-Check Entities
+- Validate identified names by checking against:
+  - Sports databases (e.g., ProCyclingStats, Transfermarkt, UCI, Wikipedia)
+  - Reliable Google search queries  
+    e.g. `"Danilith Nokere Koerse 2024 startlist site:procyclingstats.com"`
+- Resolve ambiguity between individual names vs. team/sponsor names.
+
+---
+
+### Step 4: Contextual Validation
+- Analyze **context around each entity**:
+  - Is it a player, team, sponsor, or coach?
+  - What league or race does it relate to?
+  - Does the region match expected origins?
+
+---
+
+### Step 5: Output the Validated Entities
+- Format the result in structured JSON and Markdown as follows:
+
+### Output Format:
+#### Example 1 — Just Full Names:
+```json
+[
+  {"Full name": "Tadej Pogačar"},
+  {"Full name": "Wout van Aert"},
+  {"Full name": "Mads Pedersen"}
+]
+## ADDITIONAL RULES
+- Always extract full names with correct diacritics (e.g., Søren Kragh Andersen).
+- If a name or affiliation cannot be verified, write: `"Team": "[UNKNOWN]"`.
+- Do not confuse geographic regions with nationality (e.g., “Flanders” ≠ “Belgium”).
+- Differentiate clearly between rider names and commercial team names.
+- Include UCI team names if they differ from sponsor branding.
+- Output must be in clean JSON inside triple backticks.
+"""
         return agent
+
+    def agent_geography(self):
+        agent = CodeAgent(
+            tools=[my_tools.RoadNameTool()],
+            model=self.model,
+            additional_authorized_imports=["requests", "bs4", "pandas", "os"],
+            max_steps=20,
+            verbosity_level=2,
+            name="Route_agent",
+            description="Route and Geograpy analysis.",
+        )
+        agent.prompt_templates["managed_agent"][
+            "task"
+        ] += "Research the route of the event and find the road name and road type, and road length. You are a cycling route analyst and geographer. Your task is to analyze the route of the event and find the road name and road type, and road length."
+        return agent
+
+
 
 
     def manage_agent(self, agent):
@@ -299,24 +346,33 @@ class AgentM:
             tools=[visualizer, my_tools.save_to_file],
             additional_authorized_imports=["time", "numpy", "pandas", "open", "os"],
             managed_agents=agent,
+            planning_interval=2
 
         )
         manager_agent.prompt_templates["managed_agent"]["task"] +=  """
-        ## Output save data in to md file use function `save_to_file`
+        You're a meticulous analyst with a keen eye for detail. You're known for
+        your ability to turn complex data into clear and concise reports, making
+        it easy for others to understand and act on the information you provide.
+        ## Goal 
+        Create detailed reports based on {topic} data analysis and research findings
+        ## Output 
+        save data in to md file use function `save_to_file`
         """
         return manager_agent
 
     def run(self, task):
-        # agent = self.agent_web()
+        # crawling = self.agent_crawling()
         url_resolve_agent = self.agent_url_validate()
-        back_link_agent = self.agent_backlink()
-        web_agent = self.agent_web()
-        # test_agent = self.test_agent()
+        # web_agent = self.agent_web()
+        name_agent = self.agent_name()
+        route_agent = self.agent_geography()
         manage_ag = self.manage_agent(
             [
-                # test_agent,
+                name_agent,
+                # crawling,
+                # web_agent,
                 url_resolve_agent,
-                # back_link_agent,
+                route_agent
             ]
         )
         ans = manage_ag.run(task, max_steps=20)
@@ -337,6 +393,85 @@ if __name__ == '__main__':
     # # agen = agentic.start()
     # # demo = GradioUI(agen)
     # # demo.launch()
-    search_request = """Please find the แมนยู official website and give me the official website url."""
+    from datetime import datetime
+    search_request = f"""
+Current_year: {str(datetime.now().year)}
+Please create the glossary of the event 2024 Danilith nokere koerse.
+you are a specialist in data research and data collection.
+you are able to find the data from the web and extract the data from the web page.
+you are writing the glossary about the event and apply to machine translation and linguistic analysis that will be used for transcribe the subtitle of the video that help people know about the word terminology and word that are not common word.
+you are a researcher specialized and can validate website are reliable and can be trusted.
+You are a data research specialist and linguist working on a multilingual subtitle transcription project. Your task is to collect, analyze, and output structured terminology and data from the cycling event:
+
+## **TASK: 2024 Danilith Nokere Koerse**
+
+Perform the following tasks step-by-step:
+
+---
+
+### 1. Extract Event Core Data
+
+- Visit the official event website of **Danilith Nokere Koerse 2024** and extract the following:
+  - Event name  
+  - Event date  
+  - Event location (start, intermediate, finish points)  
+  - Event distance in km  
+  - Event type (e.g., one-day race, UCI category, men/women)
+
+---
+
+### 2. Collect Complete List of Riders
+
+- Use the **official start list** from the event site.
+- Cross-verify with trusted cycling databases like **ProCyclingStats.com**, **UCI.org**, or **FirstCycling.com**.
+- Ensure:
+  - 100% inclusion of all starting riders
+  - Include full name with **correct accents and original formatting**
+  - Rider nationality (ISO 3-letter code or full country name)
+  - Team name and team nationality
+- Present the data in table format:
+  | Rider Name | Nationality | Team Name | Team Nationality |
+
+---
+
+### 3. Extract Route Details
+
+- Describe the course: major cities, sectors, cobblestones, climbs, circuits.
+- Include detailed start & finish locations, major elevation changes, laps, and terrain types.
+- If available, add route maps or elevation profiles from the official site or ProCyclingStats.
+
+---
+
+### 4. Generate Terminology Glossary
+
+- From the collected data and website text, extract a glossary of **cycling-specific and non-standard terms**.
+- Provide a short definition in English for each term.
+- Examples include: peloton, echelon, cobblestone sector, punchy climb, etc.
+- Mark terms that are important for **machine translation** (non-translatable, culture-specific, or jargon).
+
+---
+
+### 5. Final Output
+
+- Compile all the above information into a cleanly formatted **Markdown (.md)** document.
+- Organize the sections as:
+  - Event Overview
+  - Riders List
+  - Route Details
+  - Glossary of Terms
+
+- Use headers, tables, and bullet points for clarity.
+- Ensure language is formal, neutral, and optimized for translation and subtitle support.
+
+---
+
+### IMPORTANT NOTES
+
+- Prioritize data from the **official Danilith Nokere Koerse 2024 website** and validate through **ProCyclingStats**, **UCI**, and **FirstCycling**.
+- Double-check all names and route details.
+- Ensure **no rider is omitted**.
+
+
+"""
     answer = agentic.run(search_request)
     # print(answer.to_string())
