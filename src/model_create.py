@@ -6,26 +6,35 @@ from smolagents import (
     ToolCallingAgent,
     models,
     Tool,
+HfApiModel,
+AmazonBedrockServerModel
 )
 from dotenv import load_dotenv
 import os
 from pydantic import BaseModel, Field
+from together import Together
+from transformers import pipeline
 
 load_dotenv()
 from typing import List, Optional, Dict
 import warnings
-
+import litellm
+import boto3
 
 custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 
 def bedrock_model():
+    # "bedrock/us.meta.llama3-3-70b-instruct-v1:0"
+    # meta-llama/Llama-4-Scout-17B-16E-Instruct
     model_params = {
         "model_id": "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
         "custom_role_conversions": custom_role_conversions,
         "max_completion_tokens": 8192,
+        "temperature": 0,
     }
-    model = LiteLLMModel(**model_params)
+    # model = LiteLLMModel(**model_params)
+    model = AmazonBedrockServerModel(model_id="meta.llama3-3-70b-instruct-v1:0")
     return model
 
 
@@ -54,6 +63,13 @@ def groq_model():
     model = LiteLLMModel(**model_params)
     return model
 
+def huggingface_model(model="deepseek-ai/DeepSeek-V3-0324"):
+    engine = HfApiModel(
+        provider="novita",
+        model_id=model,
+        token=os.getenv("HF_TOKEN"),
+        max_tokens=5000, )
+    return engine
 
 class WikiInputs(BaseModel):
     """Inputs to the wikipedia tool."""
@@ -145,3 +161,31 @@ class CreateModel(models.ApiModel):
         )
         first_message.raw = response
         return self.postprocess_message(first_message, tools_to_call_from)
+
+def together_model():
+    client = Together()
+    response = client.chat.completions.create(
+        model="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+        messages=[{"role": "user", "content": "who are you?"}]
+    )
+    print(response.choices[0].message.content)
+
+def transformer_hugging_face():
+    messages = [
+        {"role": "user", "content": "Who are you?"},
+    ]
+    pipe = pipeline("text-generation", model="deepseek-ai/DeepSeek-V3-0324")
+    print(pipe(messages))
+
+def gemini_model():
+    messages = [
+        {"role": "user", "content": "Who are you?"},
+    ]
+    model = LiteLLMModel(
+        model_id="gemini/gemini-1.5-pro",
+        api_key=os.getenv("GEMINI_API_KEY"),
+    )
+    response = model(messages)
+    print(response.content)
+if __name__ == '__main__':
+    gemini_model()

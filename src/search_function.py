@@ -87,11 +87,11 @@ def query_serp(query):
         raise ValueError(response.json())
     return results
 
-
-def query_serper(query: str) -> list[str]:
+def query_serper(query: str) -> dict[str]:
     search_params = {
         "q": query,  # Search for the event name
         "api_key": os.getenv("SERPER_API_KEY"),
+        "num": 10,  # Number of results to return
     }
 
     # Perform the search using SerperAPI

@@ -17,7 +17,7 @@ load_dotenv()
 from src import my_tools
 from src import url_phase
 from src import backlink_check
-
+from src import search_function
 
 def verify_event_website(event_name, url):
     score = 0
@@ -69,7 +69,7 @@ def verify_event_website(event_name, url):
         score += 2
     details["ssl_org"] = ssl_org
 
-    ranking = google_search_ranking(event_name, url)
+    ranking = google_search_ranking_serper(event_name, url)
     if ranking and ranking <= 10:  # If the URL appears in the top 10 results
         score += 3  # High rank boosts the score
     details["google_search_rank"] = ranking if ranking else "Not found in top 10"
@@ -129,8 +129,8 @@ def google_search_ranking(event_name, url):
         int: The ranking of the URL in the search results (1-based).
     """
     search_params = {
-        "q": event_name,  # Search for the event name
-        "api_key": os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"),
+        "q": f"{event_name} Official Website",  # Search for the event name
+        "api_key": os.getenv("SERPER_API_KEY"),
     }
 
     # Perform the search using SerpAPI
@@ -142,7 +142,43 @@ def google_search_ranking(event_name, url):
     redirected_url = url_phase.check_redirection(url)
     redirected_domain = urlparse(redirected_url).netloc.lower()
     # Check if either the original or redirected domain appears in the search results
+
+    print(search_results)
     for index, result_dic in enumerate(search_results.get('organic_results', [])):
+        if 'link' in result_dic:
+            # print(f"Checking {result_dic['link']}")
+            result_url = url_phase.check_redirection(result_dic['link'])
+            result_domain = urlparse(result_url).netloc.lower()
+
+            # If either the original or redirected domain matches
+            if domain in result_domain or redirected_domain in result_domain:
+                return index + 1  # Return 1-based index (ranking)
+
+    return None  # URL not found in the top results
+
+def google_search_ranking_serper(event_name, url):
+    """
+    This function checks the Google search ranking of a specific URL when searching for the event_name.
+
+    Args:
+        event_name (str): The name of the event (e.g., "Tour de France").
+        url (str): The official event URL (e.g., "https://www.letour.fr/en/").
+
+    Returns:
+        int: The ranking of the URL in the search results (1-based).
+    """
+
+    # Perform the search using SerpAPI
+    query = f"{event_name} Official Website"
+    search = search_function.query_serper(query)
+    search_results = search
+    # Extract the domain from the provided URL
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc.lower()
+    redirected_url = url_phase.check_redirection(url)
+    redirected_domain = urlparse(redirected_url).netloc.lower()
+    # Check if either the original or redirected domain appears in the search results
+    for index, result_dic in enumerate(search_results.get('organic', [])):
         if 'link' in result_dic:
             # print(f"Checking {result_dic['link']}")
             result_url = url_phase.check_redirection(result_dic['link'])
@@ -270,7 +306,7 @@ def get_official_website(tour_name: str) -> str:
 
 # Example use
 if __name__ == "__main__":
-    print(google_search_ranking("Facebook", "https://www.facebook.com/"))
+    print(google_search_ranking_serper("Benelux tour", "https://renewitour.com/en/"))
     # ver_dict = verify_event_website("Benelux Tour", "https://renewitour.com/nl/")
     # for k, v in ver_dict.items():
     #     print(f"{k}: {v}")

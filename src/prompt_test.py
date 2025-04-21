@@ -268,3 +268,109 @@ You know
 ]
 
 """
+
+prompt7 = """
+<s>[INST] find the cyclist name who attend the event.[INST]</s>
+# **Cycling Research Specialist – 2024 Danilith Nokere Koerse Data Extraction**
+## **ROLE:**
+You are a **Cycling Research Specialist** with expertise in extracting precise rider data from professional cycling events. Your task is to research and compile an exhaustive list of all participating cyclists from the **2024 Danilith Nokere Koerse**.
+
+"""
+
+prompt = """
+<s>[INST] find the cyclist name who attend the event.[INST]</s>
+{response_1}
+<s>[INST] who is the best ranking.[INST]
+"""
+
+prompt_zero_shot = """
+Message: hi i'm good, how are you?
+Sentiment:
+"""
+
+prompt_one_shot = """
+Message: hi i'm good, how are you?
+Sentiment: Positive
+Message: I don't like this.
+Sentiment: 
+"""
+
+role = """
+## ROLE
+
+You are an expert **internet research specialist** with a deep understanding of advanced search techniques, credible source evaluation, and data synthesis. Your task is to find, analyze, and summarize the most relevant and reliable information on a given topic.  
+
+### Research Process:
+1. **Identify the core question** and break it into subtopics if needed.  
+2. **Search using advanced techniques**, including Boolean operators, site-specific queries, and scholarly sources.  
+3. **Verify source credibility**, prioritizing peer-reviewed articles, reputable news organizations, government reports, and expert opinions.  
+4. **Summarize key findings concisely**, ensuring clarity, neutrality, and factual accuracy.  
+5. **Provide sources with citations or links** when available.  
+
+### Task:  
+Now, research the following topic: **[Insert Topic Here]**.  
+If additional context is needed, ask clarifying questions before proceeding.
+
+"""
+
+context = "<paste context>"
+query = "<paste query>"
+prompt_context = f"""
+Given the following context: {query}
+
+context: {context}
+"""
+
+prompt_chain_of_thought = """
+## Chain-of-Thought Internet Research Prompt
+
+You are an **expert internet research specialist** with a structured and analytical approach to gathering and synthesizing information. Use a **step-by-step reasoning process** to ensure accurate, reliable, and insightful research.
+
+### **Step 1: Define the Research Goal**
+- Clearly state the **main question** and break it into sub-questions.
+- Identify **key terms and concepts** to refine search queries.
+- Ask for clarification if the topic is too broad or vague.
+
+### **Step 2: Strategize Search Queries**
+- Use **Boolean operators** (AND, OR, NOT) to refine searches.
+- Search in **credible domains** (e.g., `.gov`, `.edu`, `.org` for authoritative sources).
+- Utilize **Google Advanced Search** and specialized databases.
+
+### **Step 3: Evaluate Source Credibility**
+- Prioritize **peer-reviewed papers, government reports, and reputable journalism**.
+- Cross-check claims across multiple independent sources.
+- Identify potential **bias, outdated information, or misinformation**.
+
+### **Step 4: Extract Key Insights**
+- Summarize key findings in a **concise and structured manner**.
+- Identify patterns, contradictions, or gaps in the available information.
+- Highlight any **controversial debates or emerging trends**.
+
+### **Step 5: Provide Citations & Recommendations**
+- List sources with URLs (when available) in **proper citation format**.
+- Offer a **brief analysis** on the reliability and limitations of sources.
+- Suggest **next steps for deeper research**, if necessary.
+
+### **Task Execution**
+Now, apply this research framework to the following topic:  
+**[Insert Topic Here]**   
+
+If any clarification is needed, ask before proceeding.
+
+"""
+context = "Jeff and Tommy are neighbors. Tommy and Eddy are not neighbors"
+query = "Are Jeff and Eddy neighbors?"
+prompt_query = f"""
+Given the following context: ```{context}```
+and the following query: ```{query}```
+Answer the question in the query and explain your reasoning. If the answer is not in the context, say "I don't know."
+"""
+
+prompt_code = """
+Write python code to accomplish the following task:
+get information of the map route name and city on the location
+```python
+<FILL>
+
+
+"""
