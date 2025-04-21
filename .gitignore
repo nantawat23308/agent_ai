@@ -1,7 +1,7 @@
 .venv
 .env
 .gradio
-crew
+
 __pycache__
 *.egg-info
 *.egg
@@ -27,4 +27,6 @@ __pycache__
 *.mypy_cache
 
 downloads
+cache
+crew
 src/cache
