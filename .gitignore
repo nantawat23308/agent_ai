@@ -27,6 +27,6 @@ __pycache__
 *.mypy_cache
 
 downloads
-cache
-crew
-src/cache
+cache/
+crew/
+src/cache/
