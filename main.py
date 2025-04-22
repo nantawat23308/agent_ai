@@ -128,11 +128,7 @@ class AgentM:
         ## Plan
         ### 1. Search for the Official Website
         you can use `get_official_website` function to find official website this function will return the official website from wikipedia.
-<<<<<<< HEAD
-        and then you have to search for the official website from the search engine result most of the time the official website is listed on the first page of the search engine.
-=======
         and then you have to pic 1 website the most relevance from the search engine result most of the time the official website is listed on the first page of the search engine.
->>>>>>> development
        
         ### 2. Verify the Website’s Authenticity
         you can use `verify_event_website` to verify how much score of this website you have to return only one which highest score and you think it is the official website.
@@ -140,20 +136,9 @@ class AgentM:
         ### 3. Provide a Verified Response
         - If you confirm the official website, return the URL along with a brief justification (e.g., "This is the official website as listed on the sport’s governing body page.").
         - If no authoritative site is found, state that the information is unavailable rather than guessing.
-        
-<<<<<<< HEAD
-        """
-        agent.prompt_templates["managed_agent"][
-            "report"
-        ] += """
-        ## Output
-        you have to return result in json format like this 
-        {"name": name , "official website": url}
-=======
         ##OUPUT
         Output should be in md format and
         save the output by using `save_to_file` function
->>>>>>> development
         """
 
         return agent
