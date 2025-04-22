@@ -421,7 +421,7 @@ def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
             color = "red"
         else:
             marker_text = f"Waypoint {i}"
-            color = colors[min(i, len(colors) - 1)]
+            color = "cadetblue" or colors[min(i, len(colors) - 1)]
 
         folium.Marker(
             point,
@@ -432,6 +432,7 @@ def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
     # Process each segment between consecutive waypoints
     total_distance = 0
     all_segments = []
+    all_road = []
 
     # Get pairs of waypoints (start->wp1, wp1->wp2, etc.)
     for i, (start_point, end_point) in enumerate(pairwise(waypoints)):
@@ -440,7 +441,6 @@ def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
 
         # Get routes for this segment
         result = get_segment_route(start_point, end_point, max_routes_per_segment)
-        print(result)
 
         if isinstance(result, str):  # Error message
             print(f"Error: {result}")
@@ -460,15 +460,16 @@ def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
 
         # Alternative route color variants
         if segment_base_color == "blue":
-            route_colors = ["blue", "darkblue", "lightblue"]
+            route_colors = ["blue", "darkblue"]
         else:
-            route_colors = ["purple", "darkpurple", "violet"]
+            route_colors = ["purple", "violet"]
 
         # Add all alternative routes to the map
         for j, route_path in enumerate(result["routes"]):
             route_points = result["segment_points"][j]
             route_distance = result["distances"][j]
             road_names = result["road_names"][j]
+            all_road.extend(road_names)
 
             # Track the best (shortest) route
             if route_distance < segment_data["best_distance"]:
@@ -511,19 +512,20 @@ def get_multi_waypoint_route(waypoints, max_routes_per_segment=3):
     print(f"\nTotal primary route distance: {total_distance:.1f}km")
 
     # Add a legend
-    legend_html = """
-    <div style="position: fixed; bottom: 50px; left: 50px; z-index: 1000; background-color: white; padding: 10px; border: 2px solid grey; border-radius: 5px;">
-    <h4>Route Legend</h4>
-    <div><span style="background-color: blue; width: 15px; height: 5px; display: inline-block;"></span> Primary Route</div>
-    <div><span style="background-color: purple; width: 15px; height: 5px; display: inline-block;"></span> Alternative Routes</div>
-    </div>
-    """
-    m.get_root().html.add_child(folium.Element(legend_html))
-
+    # legend_html = """
+    # <div style="position: fixed; bottom: 50px; left: 50px; z-index: 1000; background-color: white; padding: 10px; border: 2px solid grey; border-radius: 5px;">
+    # <h4>Route Legend</h4>
+    # <div><span style="background-color: blue; width: 15px; height: 5px; display: inline-block;"></span> Primary Route</div>
+    # <div><span style="background-color: purple; width: 15px; height: 5px; display: inline-block;"></span> Alternative Routes</div>
+    # </div>
+    # """
+    # m.get_root().html.add_child(folium.Element(legend_html))
+    all_road = [road for road in list(set(all_road)) if not road.startswith("way_")]
     return {
         "map": m,
         "segments": all_segments,
-        "total_distance": total_distance
+        "total_distance": total_distance,
+        "total_road_names": all_road,
     }
 
 
@@ -539,10 +541,11 @@ def get_segment_route(start_point, end_point, max_routes=3):
 
     # Query for roads in this area
     overpass_url = "https://overpass-api.de/api/interpreter"
+    condition_highway = """motorway|trunk|primary|secondary|tertiary|unclassified|residential"""
     query = f"""
     [out:json];
     (
-      way["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential"]
+      way["highway"~"motorway|trunk|primary|secondary|tertiary"]
         ({min_lat},{min_lon},{max_lat},{max_lon});
     );
     (._;>;);  // Get all nodes for ways
@@ -744,21 +747,39 @@ if __name__ == '__main__':
     city_names = [
         "Deinze, Flanders, Belgium",
         "Gavere, Flanders, Belgium",
-        # "Zottegem, Belgium",
-        # "Oudenaarde, Belgium",
-        # "Anzegem, Belgium",
-        # "Waregem, Belgium",
-        # "Nokere, Flanders, Belgium",
-        # "Kruisem, Belgium"
+        "Velzeke, Belgium",
+        "Strijpen, Belgium",
+        "Oudenaarde, Belgium",
+        "Anzegem, Belgium",
+        "Waregem, Belgium",
+        "Nokere, Flanders, Belgium",
+        "Kruishoutem, Belgium",
+        "Ouwegem, Belgium",
+        "Lange Ast, Belgium",
+        "Wannegem, Belgium",
+        "Nokere, Flanders, Belgium"
     ]
     waypoints = [(get_city_coords(city)) for city in city_names]
+    if all(waypoints):
+        print("ERROR")
     print(waypoints)
     # start = (48.8566, 2.3522)  # Paris
     # end = (48.5734, 2.4520)  # Evry (closer destination for faster testing)
-    result = get_multi_waypoint_route(waypoints, max_routes_per_segment=5)
+    result = get_multi_waypoint_route(waypoints, max_routes_per_segment=3)
+    print(result.keys())
     map_result = result["map"]
 
     # Save map to HTML file
     map_result.save("multi_waypoint_routes_with_alternatives.html")
     print(f"Routes generated with total primary route distance: {result['total_distance']:.1f}km")
     print(f"Total alternative routes generated: {sum(segment['total_routes'] for segment in result['segments'])}")
+    road_name = []
+    count = 0
+    for segment in result["segments"]:
+        for way in segment["routes"]:
+            road_name.extend(way["road_names"])
+    road_name = list(set(road_name))
+    count = len(road_name)
+    print("Total road names found:", count)
+    with open("multi_waypoint_routes.json", "w+") as file:
+        json.dump(result.get("total_road_names"), file, indent=4)
