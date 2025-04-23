@@ -1,8 +1,7 @@
-import json
 import os
-from tabnanny import verbose
 
 from dotenv import load_dotenv
+from mcp import StdioServerParameters
 
 load_dotenv()
 from open_deep_research.scripts.visual_qa import visualizer
@@ -15,8 +14,8 @@ from open_deep_research.scripts.text_web_browser import (
     PageUpTool,
     SimpleTextBrowser,
     VisitTool,
-SearchInformationTool,
-DownloadTool
+    SearchInformationTool,
+    DownloadTool
 )
 from smolagents import (
     CodeAgent,
@@ -25,15 +24,19 @@ from smolagents import (
     ToolCallingAgent,
     VisitWebpageTool,
     PythonInterpreterTool,
-MultiStepAgent,
-AmazonBedrockServerModel
+    ToolCollection,
 )
+from smolagents.mcp_client import MCPClient
 from src import constants
 from src import model_create
 from src import my_tools
+from src import prompt_test
 import litellm
-# register()
-# SmolagentsInstrumentor().instrument()
+from phoenix.otel import register
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+
+register()
+SmolagentsInstrumentor().instrument()
 
 litellm.drop_params=True
 BROWSER_CONFIG = {
@@ -69,6 +72,15 @@ class AgentM:
             TextInspectorTool(self.model, self.text_limit),
             DownloadTool(self.browser),
         ]
+        playwright_server_parameters = StdioServerParameters(
+            command="npx",
+            args=["@playwright/mcp@latest"],
+            env={"UV_PYTHON": "3.12", **os.environ}
+        )
+        self.mcp_client = ToolCollection.from_mcp(playwright_server_parameters)
+        mcp_client = MCPClient(playwright_server_parameters)
+        self.tools = mcp_client.get_tools()
+
 
     def agent_url_validate(self):
         """
@@ -300,22 +312,22 @@ class AgentM:
 """
         return agent
 
-    def agent_geography(self):
+    def agent_map(self):
+
         agent = CodeAgent(
-            tools=[my_tools.RoadNameTool()],
+            tools=[my_tools.RoadNameTool(), GoogleSearchTool()],
             model=self.model,
-            additional_authorized_imports=["requests", "bs4", "pandas", "os"],
+            # additional_authorized_imports=["json", "requests", "bs4", "pandas", "os"],
             max_steps=20,
             verbosity_level=2,
             name="Route_agent",
             description="Route and Geograpy analysis.",
         )
+
         agent.prompt_templates["managed_agent"][
             "task"
-        ] += "Research the route of the event and find the road name and road type, and road length. You are a cycling route analyst and geographer. Your task is to analyze the route of the event and find the road name and road type, and road length."
+        ] += prompt_test.prompt9
         return agent
-
-
 
 
     def manage_agent(self, agent):
@@ -345,16 +357,18 @@ class AgentM:
             tools=[visualizer, my_tools.save_to_file],
             additional_authorized_imports=["time", "numpy", "pandas", "open", "os"],
             managed_agents=agent,
-            planning_interval=2
+            planning_interval=3,
         )
         manager_agent.prompt_templates["managed_agent"]["task"] +=  """
         You're a meticulous analyst with a keen eye for detail. You're known for
         your ability to turn complex data into clear and concise reports, making
         it easy for others to understand and act on the information you provide.
-        ## Goal 
+        ## Goal
         Create detailed reports based on {topic} data analysis and research findings
-        ## Output 
-        save data in to md file use function `save_to_file`
+        Save data in to md file use function `save_to_file`.
+        ## Output
+        - Use Markdown format for the report.
+        - Include sections for Introduction, Methodology, Results, and Conclusion.
         """
         return manager_agent
 
@@ -363,13 +377,14 @@ class AgentM:
         url_resolve_agent = self.agent_url_validate()
         # web_agent = self.agent_web()
         name_agent = self.agent_name()
-        route_agent = self.agent_geography()
+        route_agent = self.agent_map()
+
         manage_ag = self.manage_agent(
             [
-                name_agent,
+                # name_agent,
                 # crawling,
                 # web_agent,
-                url_resolve_agent,
+                # url_resolve_agent,
                 route_agent
             ]
         )
@@ -385,91 +400,39 @@ class AgentM:
         )
         return manage_ag
 
+    def test_mcp(self):
+        model = model_create.bedrock_model()
+        playwright_server_parameters = StdioServerParameters(
+            command="npx",
+            args=["@playwright/mcp@latest"],
+            env={"UV_PYTHON": "3.12", **os.environ}
+        )
+        # browser_use = StdioServerParameters(
+        #     command="uvx",
+        #     args=["mcp-server-browser-use"],
+        #     env={"UV_PYTHON": "3.12", **os.environ}
+        # )
+        capcha_search = StdioServerParameters(
+            command="npx",
+            args=["-y", "@modelcontextprotocol/server-puppeteer"]
+        )
 
+        with ToolCollection.from_mcp([playwright_server_parameters],
+                                     trust_remote_code=True) as tool_collection:
+            agent = CodeAgent(
+                tools=[*tool_collection.tools],
+                model=model,
+                additional_authorized_imports=[
+                    # "requests", "bs4", "pandas", "os",
+                    "json"
+                ],
+
+            )
+            agent.run(prompt_test.prompt8, max_steps=20)
 if __name__ == '__main__':
     agentic = AgentM()
-    # # agen = agentic.start()
-    # # demo = GradioUI(agen)
-    # # demo.launch()
-    from datetime import datetime
-    search_request = f"""
-Current_year: {str(datetime.now().year)}
-Please create the glossary of the event 2024 Danilith nokere koerse.
-you are a specialist in data research and data collection.
-you are able to find the data from the web and extract the data from the web page.
-you are writing the glossary about the event and apply to machine translation and linguistic analysis that will be used for transcribe the subtitle of the video that help people know about the word terminology and word that are not common word.
-you are a researcher specialized and can validate website are reliable and can be trusted.
-You are a data research specialist and linguist working on a multilingual subtitle transcription project. Your task is to collect, analyze, and output structured terminology and data from the cycling event:
-
-## **TASK: 2024 Danilith Nokere Koerse**
-
-Perform the following tasks step-by-step:
-
----
-
-### 1. Extract Event Core Data
-
-- Visit the official event website of **Danilith Nokere Koerse 2024** and extract the following:
-  - Event name  
-  - Event date  
-  - Event location (start, intermediate, finish points)  
-  - Event distance in km  
-  - Event type (e.g., one-day race, UCI category, men/women)
-
----
-
-### 2. Collect Complete List of Riders
-
-- Use the **official start list** from the event site.
-- Cross-verify with trusted cycling databases like **ProCyclingStats.com**, **UCI.org**, or **FirstCycling.com**.
-- Ensure:
-  - 100% inclusion of all starting riders
-  - Include full name with **correct accents and original formatting**
-  - Rider nationality (ISO 3-letter code or full country name)
-  - Team name and team nationality
-- Present the data in table format:
-  | Rider Name | Nationality | Team Name | Team Nationality |
-
----
-
-### 3. Extract Route Details
-
-- Describe the course: major cities, sectors, cobblestones, climbs, circuits.
-- Include detailed start & finish locations, major elevation changes, laps, and terrain types.
-- If available, add route maps or elevation profiles from the official site or ProCyclingStats.
-
----
-
-### 4. Generate Terminology Glossary
-
-- From the collected data and website text, extract a glossary of **cycling-specific and non-standard terms**.
-- Provide a short definition in English for each term.
-- Examples include: peloton, echelon, cobblestone sector, punchy climb, etc.
-- Mark terms that are important for **machine translation** (non-translatable, culture-specific, or jargon).
-
----
-
-### 5. Final Output
-
-- Compile all the above information into a cleanly formatted **Markdown (.md)** document.
-- Organize the sections as:
-  - Event Overview
-  - Riders List
-  - Route Details
-  - Glossary of Terms
-
-- Use headers, tables, and bullet points for clarity.
-- Ensure language is formal, neutral, and optimized for translation and subtitle support.
-
----
-
-### IMPORTANT NOTES
-
-- Prioritize data from the **official Danilith Nokere Koerse 2024 website** and validate through **ProCyclingStats**, **UCI**, and **FirstCycling**.
-- Double-check all names and route details.
-- Ensure **no rider is omitted**.
-
-
-"""
-    answer = agentic.run(search_request)
-    # print(answer.to_string())
+    # agen = agentic.start()
+    # demo = GradioUI(agen)
+    # demo.launch()
+    agentic.run("Find the route and road name of the tour 78th Danilith Nokere Koerse list all the road name and route")
+    # agentic.test_mcp()

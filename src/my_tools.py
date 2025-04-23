@@ -1,8 +1,16 @@
+import os
+
 import requests
 from bs4 import BeautifulSoup
 
 from pathlib import Path
-from smolagents import Tool, tool
+from smolagents import Tool, tool, ToolCollection, CodeAgent
+from mcp import StdioServerParameters
+import datasets
+from langchain.docstore.document import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.retrievers import BM25Retriever
+
 
 from src import url_function
 from src import url_phase
@@ -10,6 +18,8 @@ from src import map_function
 from huggingface_hub import list_models
 from src import map_utility
 from src import mdconvert
+
+
 description = """
     Verify the authenticity of a website for a given event by analyzing its content.
     This tool checks various aspects of a webpage to determine if it's likely to be the official website for a specific event.
@@ -100,36 +110,39 @@ def model_download_tool(task: str) -> str:
 
 
 class RoadNameTool(Tool):
-    name: str = "get_road_name_from_city"
-    description: str = "Get the road name from a given city."
+    name: str = "get_rout_information_cities_list"
+    description: str = "Get a dictionary of information of the route between city to other city in order."
     inputs = {
-        "city": {
-            "type": "string",
-            "description": "The name of the city.",
+        "city_names": {
+            "type": "array",
+            "description": "A list of city names with country to get road names between city to city in order.",
         },
     }
     output_type = "any"
 
 
-    def __init__(self):
-        super().__init__()
-        self.map_util = map_utility.MapUtility()
-        self.map_util.visualize = False
-
-
     def setup(self):
-        pass
+        self.map_util = map_utility.MapUtility()
 
 
-    def forward(self, city: list[str]) -> dict:
+    def forward(self, city_names: list[str]) -> list:
         """
         Args:
-            city: The name of the city.
+            city_names: A list of city names with country for handle route name duplicate to get road names between city to city in order.
         Returns:
-            The road name associated with the city.
+            A dictionary containing the road names between the specified cities.
+            example:
+            {
+            "map": m,
+            "segments": all_segments,
+            "total_distance": total_distance,
+            "total_road_names": all_road,
+        }
         """
-        self.map_util.locations = city
-        return self.map_util.get_route_city()
+        waypoints = [(self.map_util.get_city_coords(city)) for city in city_names]
+        result = self.map_util.get_multi_waypoint_route(waypoints, max_routes_per_segment=3)
+        result = result.get("total_road_names", [])
+        return result
 
 
 class MarkDownFromURL(Tool):
@@ -151,6 +164,8 @@ class MarkDownFromURL(Tool):
             The generated markdown content.
         """
         return url_phase.generate_markdown(url)
+
+
 class MarkdownConverterTool(Tool):
     name: str = "markdown_converter"
     description: str = "Convert a file to markdown format."
@@ -172,5 +187,58 @@ class MarkdownConverterTool(Tool):
         converter = mdconvert.MarkdownConverter()
         response = requests.get(url)
         return converter.convert(response).text_content
+
+
+class RetrieverTool(Tool):
+    name = "retriever"
+    description = "Uses semantic search to retrieve the parts of transformers documentation that could be most relevant to answer your query."
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": "The query to perform. This should be semantically close to your target documents. Use the affirmative form rather than a question.",
+        }
+    }
+    output_type = "string"
+
+    def __init__(self, docs, **kwargs):
+        super().__init__(**kwargs)
+        self.retriever = BM25Retriever.from_documents(
+            docs, k=10
+        )
+
+    def forward(self, query: str) -> str:
+        assert isinstance(query, str), "Your search query must be a string"
+
+        docs = self.retriever.invoke(
+            query,
+        )
+        return "\nRetrieved documents:\n" + "".join(
+            [
+                f"\n\n===== Document {str(i)} =====\n" + doc.page_content
+                for i, doc in enumerate(docs)
+            ]
+        )
+
+
+
 if __name__ == '__main__':
-    print(MarkdownConverterTool().forward("https://docs.litellm.ai/release_notes/v1.66.0-stable"))
+    knowledge_base = datasets.load_dataset("m-ric/huggingface_doc", split="train[:10]")
+    knowledge_base = knowledge_base.filter(lambda row: row["source"].startswith("huggingface/transformers"))
+    source_docs = [
+        Document(page_content=doc["text"], metadata={"source": doc["source"].split("/")[1]})
+        for doc in knowledge_base
+    ]
+    print(source_docs)
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=50,
+        add_start_index=True,
+        strip_whitespace=True,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+    docs_processed = text_splitter.split_documents(source_docs)
+    print("Number of documents:", len(docs_processed))
+
+    retriever_tool = RetrieverTool(docs_processed)
+    print(retriever_tool.forward("How to use the pipeline function?"))

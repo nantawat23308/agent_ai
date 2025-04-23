@@ -757,29 +757,12 @@ if __name__ == '__main__':
         "Ouwegem, Belgium",
         "Lange Ast, Belgium",
         "Wannegem, Belgium",
-        "Nokere, Flanders, Belgium"
+        "Nokere, Flanders, Belgium",
+        "Zottegem, Flanders, Belgium",
     ]
-    waypoints = [(get_city_coords(city)) for city in city_names]
-    if all(waypoints):
-        print("ERROR")
-    print(waypoints)
-    # start = (48.8566, 2.3522)  # Paris
-    # end = (48.5734, 2.4520)  # Evry (closer destination for faster testing)
-    result = get_multi_waypoint_route(waypoints, max_routes_per_segment=3)
-    print(result.keys())
-    map_result = result["map"]
+    waypoints = {}
+    for city in city_names:
+        waypoints[city] = get_city_coords(city)
+        print(f"{city} {waypoints[city]}")
 
-    # Save map to HTML file
-    map_result.save("multi_waypoint_routes_with_alternatives.html")
-    print(f"Routes generated with total primary route distance: {result['total_distance']:.1f}km")
-    print(f"Total alternative routes generated: {sum(segment['total_routes'] for segment in result['segments'])}")
-    road_name = []
-    count = 0
-    for segment in result["segments"]:
-        for way in segment["routes"]:
-            road_name.extend(way["road_names"])
-    road_name = list(set(road_name))
-    count = len(road_name)
-    print("Total road names found:", count)
-    with open("multi_waypoint_routes.json", "w+") as file:
-        json.dump(result.get("total_road_names"), file, indent=4)
+    print(waypoints)

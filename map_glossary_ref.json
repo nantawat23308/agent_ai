@@ -1,0 +1,60 @@
+{
+  "key_waypoints": [
+    "Deinze", "Nazareth", "Gavere", "Zwalm", "Velzeke", "Strijpen", "Boekel", "Oudenaarde",
+    "Horebeke", "Maarkedal", "Kaster", "Tiegem", "Anzegem", "Wortegem", "Petegem",
+    "Kruisem", "Lozer", "Ouwegem", "Huise", "Lede", "Wannegem", "Nokere"
+  ],
+  "major_streets": [
+    "Gaversesteenweg", "Tweebruggenlaan", "Beerlegemsebaan", "Kasteeldreef", "Nokeredorpstraat",
+    "Petegemstraat", "Varentstraat", "Tiegemstraat", "Waregemsestraat", "Anzegemsesteenweg",
+    "Ouwegemsesteenweg", "Gentsesteenweg", "Lange Aststraat", "Driesstraat", "Rooigemstraat",
+    "Ledepontweg", "Ledekerkweg", "Herlegemstraat", "Holleweg", "Hoogstraat", "Sint-Elooiskeer",
+    "Colijnstraat", "Kasteelstraat", "Beekstraat", "Vaddenhoek", "Kruishoutemseweg", "Bosstraat",
+    "Zonnestraat", "Biesbosstraat", "Slijpstraat", "Romeins Plein", "Broeksestraat", "Smarre",
+    "Meerhem", "Statiestraat", "Dorpsplein", "Molenstraat", "Nijverheidstraat", "Stationsstraat",
+    "Kongoplein", "Matthijs Casteleinstraat", "Minderbroedersstraat", "Kortrijkstraat",
+    "Oudenaardsesteenweg", "Heerweg", "Zottegemstraat", "Schorissestraat", "Maarkeweg",
+    "Kokerellestraat", "Edelareberg", "Huisepontweg", "Lededorp", "Doorn", "Kleinestraat",
+    "Tsjoenstraat", "Nellekensstraat"
+  ],
+  "climbs": [
+    "Hellestraat", "Holstraat", "Petegemberg", "Fabriekstraat", "Lange Ast", "Nokereberg",
+    "Waregemsestraat", "Kokerelle"
+  ],
+  "cobbled_sections": [
+    "Paddestraat", "Holleweg", "Fabriekstraat", "Varent", "Nokereberg", "Doorn", "Herlegemstraat"
+  ],
+  "feed_zones": [
+    "Strijpen", "Tiegem", "Kruishoutem"
+  ],
+  "mountain_prize_checkpoints": [
+    "Nokereberg (km 87.7)", "Nokereberg (km 119.1)", "Nokereberg (km 150.4)"
+  ],
+  "local_lap_areas": [
+    "Waregemsestraat", "Nellekensstraat", "Herlegemstraat", "Hoogstraat", "Sint-Elooiskeer",
+    "Colijnstraat", "Kasteelstraat", "Ouwegemsesteenweg", "Gentsesteenweg", "Lange Aststraat",
+    "Driesstraat", "Rooigemstraat", "Vaddenhoek", "Herlegem", "Beekstraat", "Ledepontweg",
+    "Lededorp", "Ledekerkweg", "Huisepontweg", "Wannegemdorp", "Kleinestraat", "Tsjoenstraat"
+  ],
+  "landmarks_and_iconic_places": [
+    "Markt Deinze",
+    "Driespoort Shopping",
+    "Scheldebrug (Scheldt Bridge)",
+    "Romeins Plein",
+    "Tour of Flanders Center (near Oudenaarde)",
+    "Kruishoutem Town Hall",
+    "DNK Site, Waregemsestraat Nokere",
+    "Kerzelare Chapel (Edelare)",
+    "Lozer Castle area",
+    "Petegem-aan-de-Schelde",
+    "Leie River crossing",
+    "Wannegem Castle surroundings",
+    "Nokere village square",
+    "Herlegem (historic hamlet)",
+    "Huisepontweg fields",
+    "Zottegemsesteenweg (classic Flemish feeder road)",
+    "Bergstraat scenic ridge",
+    "Kruishoutem Church",
+    "Waregemsestraat podium & finish zone"
+  ]
+}
