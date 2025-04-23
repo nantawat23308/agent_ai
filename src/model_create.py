@@ -21,7 +21,7 @@ import warnings
 import litellm
 import boto3
 
-custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
+# custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 
 def bedrock_model():
@@ -29,12 +29,12 @@ def bedrock_model():
     # meta-llama/Llama-4-Scout-17B-16E-Instruct
     model_params = {
         "model_id": "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
-        "custom_role_conversions": custom_role_conversions,
+        # "custom_role_conversions": custom_role_conversions,
         "max_completion_tokens": 8192,
         "temperature": 0,
     }
-    # model = LiteLLMModel(**model_params)
-    model = AmazonBedrockServerModel(model_id="meta.llama3-3-70b-instruct-v1:0")
+    model = LiteLLMModel(**model_params)
+    # model = AmazonBedrockServerModel(model_id="meta.llama3-3-70b-instruct-v1:0")
     return model
 
 

@@ -31,3 +31,7 @@ cache/
 crew/
 src/cache/
 .vscode/
+doc/
+report
+report/
+logs/

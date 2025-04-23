@@ -2,7 +2,7 @@ import argparse
 import math
 import os
 from itertools import pairwise
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
 import folium
 import networkx as nx
@@ -201,7 +201,7 @@ class MapUtility:
             print(f"An error occurred: {e}")
             return list()
 
-    def get_multi_waypoint_route(self, waypoints, max_routes_per_segment=3):
+    def get_multi_waypoint_route(self, waypoints: list[(int, int)], max_routes_per_segment: int=3) -> dict | str:
         """
         Route through multiple waypoints in order using Overpass API and NetworkX
 
@@ -210,7 +210,12 @@ class MapUtility:
             max_routes_per_segment: Max number of alternative routes per segment
 
         Returns:
-            A folium map with the complete route including alternatives
+            {
+            "map": m,
+            "segments": all_segments,
+            "total_distance": total_distance,
+            "total_road_names": all_road,
+        }
         """
         if len(waypoints) < 2:
             return "Need at least two waypoints"
@@ -338,9 +343,20 @@ class MapUtility:
             "total_road_names": all_road,
         }
 
-    def get_segment_route(self, start_point, end_point, max_routes=3):
+    def get_segment_route(self, start_point: list | tuple, end_point: list | tuple, max_routes: int = 3) -> dict | str:
         """
         Get possible routes for a single segment using Overpass API and NetworkX
+        Args:
+            start_point: Starting point (latitude, longitude)
+            end_point: Ending point (latitude, longitude)
+            max_routes: Maximum number of routes to return
+        Returns:
+            {
+            "routes": routes,
+            "segment_points": segment_points,
+            "distances": distances,
+            "road_names": all_road_names
+        }
         """
         # Create a bounding box around the points with some padding
         min_lat = min(start_point[0], end_point[0]) - 0.05

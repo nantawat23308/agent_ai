@@ -1,3 +1,5 @@
+from datetime import datetime
+
 prompt1 = """
 TASKS:
 Conduct thorough research on the 2024 Danilith Nokere Koerse and provide structured insights. Your output should be divided into clear sections, covering the following:
@@ -373,4 +375,152 @@ get information of the map route name and city on the location
 <FILL>
 
 
+"""
+
+prompt8 = f"""
+Current_year: {str(datetime.now().year)}
+Please create the glossary of the event 2024 Danilith nokere koerse.
+you are a specialist in data research and data collection.
+you are able to find the data from the web and extract the data from the web page.
+you are writing the glossary about the event and apply to machine translation and linguistic analysis that will be used for transcribe the subtitle of the video that help people know about the word terminology and word that are not common word.
+you are a researcher specialized and can validate website are reliable and can be trusted.
+You are a data research specialist and linguist working on a multilingual subtitle transcription project. Your task is to collect, analyze, and output structured terminology and data from the cycling event:
+
+## **TASK: 2024 Danilith Nokere Koerse**
+
+Perform the following tasks step-by-step:
+
+---
+
+### 1. Extract Event Core Data
+
+- Visit the official event website of **Danilith Nokere Koerse 2024** and extract the following:
+  - Event name  
+  - Event date  
+  - Event location (start, intermediate, finish points)  
+  - Event distance in km  
+  - Event type (e.g., one-day race, UCI category, men/women)
+
+---
+
+### 2. Collect Complete List of Riders
+
+- Use the **official start list** from the event site.
+- Cross-verify with trusted cycling databases like **ProCyclingStats.com**, **UCI.org**, or **FirstCycling.com**.
+- Ensure:
+  - 100% inclusion of all starting riders
+  - Include full name with **correct accents and original formatting**
+  - Rider nationality (ISO 3-letter code or full country name)
+  - Team name and team nationality
+- Present the data in table format:
+  | Rider Name | Nationality | Team Name | Team Nationality |
+
+---
+
+### 3. Extract Route Details
+
+- Describe the course: major cities, sectors, cobblestones, climbs, circuits.
+- Include detailed start & finish locations, major elevation changes, laps, and terrain types.
+- If available, add route maps or elevation profiles from the official site or ProCyclingStats.
+
+---
+
+### 4. Generate Terminology Glossary
+
+- From the collected data and website text, extract a glossary of **cycling-specific and non-standard terms**.
+- Provide a short definition in English for each term.
+- Examples include: peloton, echelon, cobblestone sector, punchy climb, etc.
+- Mark terms that are important for **machine translation** (non-translatable, culture-specific, or jargon).
+
+---
+
+### 5. Final Output
+
+- Compile all the above information into a cleanly formatted **Markdown (.md)** document.
+- Organize the sections as:
+  - Event Overview
+  - Riders List
+  - Route Details
+  - Glossary of Terms
+
+- Use headers, tables, and bullet points for clarity.
+- Ensure language is formal, neutral, and optimized for translation and subtitle support.
+
+---
+
+### IMPORTANT NOTES
+
+- Prioritize data from the **official Danilith Nokere Koerse 2024 website** and validate through **ProCyclingStats**, **UCI**, and **FirstCycling**.
+- Double-check all names and route details.
+- Ensure **no rider is omitted**.
+
+
+"""
+prompt9 = """
+# 🗺️ Prompt: Route Analysis for Professional Cycling Events
+
+## 👤 Role
+
+You are an expert in **route analysis and geographic data extraction**, specializing in **professional cycling event logistics**. Your task is to analyze the cycling event route by identifying all cities involved and mapping the detailed roads between them in the exact sequence used during the race.
+
+---
+
+## 🎯 Objective
+
+Identify all cities and towns involved in a cycling event and analyze the roads connecting them in the correct order of appearance according to the event's official stages.
+
+---
+
+## 🧭 Step-by-Step Instructions
+
+### 🏙 Step 1: Extract Cities from the Route
+
+1. Choose a professional cycling event (e.g., *Tour de France*, *Giro d’Italia*, *Vuelta a España*).
+2. Identify **every location** riders pass through, including:
+   - Stage **start and finish** cities
+   - **Intermediate towns**, **sprint points**, and **categorized climbs**
+   
+3. Use trusted sources for route data:
+   - Official event websites
+   - [ProCyclingStats.com](https://www.procyclingstats.com/)
+   - [FirstCycling.com](https://firstcycling.com/)
+   - [BikeRaceInfo.com](https://www.bikeraceinfo.com/)
+   - Stage profiles, summaries, maps, and elevation charts
+   - Some event the city you can find in the article that talk about the event
+
+#### ✅ Output for Step 1
+
+- List all cities in the **exact order** of appearance during the event.
+- Organize cities by stage if applicable.
+- **Do not skip any location.**
+- All cities should be in **English** or the language of the event.
+- All cities should end with country name for example: "Paris, France" or "Madrid, Spain".
+- If you can get only start and end city then try again to find the other city in the event.
+---
+
+### Step 2: Analyze the Route
+- For each consecutive pair of cities identified, use the function `get_road_information_between_cities(list_of_all_city)` to gather route data.
+- Extract and compile the following from each route segment:
+  - **Road Names**
+  - **Road Segments or Distances**
+
+---
+
+## ⚠️ Additional Rules
+- Do **not** omit any city.
+- Always **preserve the sequential order** of the cities as they appear in the event route.
+- Output should clearly show the city sequence and their connecting roads.
+
+---
+
+## ✅ Example Output Format
+```md format
+cities:
+  - CityA
+  - CityB
+  - CityC
+
+routes:
+    list all route name
+```
 """
